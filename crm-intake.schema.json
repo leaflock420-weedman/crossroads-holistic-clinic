@@ -41,7 +41,7 @@
     },
     {
       "key": "history",
-      "label": "Previous prescription cannabis clinic experience",
+      "label": "Previous telehealth clinic experience",
       "type": "radio",
       "required": false
     },
@@ -73,6 +73,6 @@
     "Appointment status",
     "Care pathway",
     "Follow-up tasks",
-    "TGA product list"
+    "Clinically appropriate treatment information"
   ]
 }

@@ -107,7 +107,7 @@ if (enquiryForm instanceof HTMLFormElement) {
       `State: ${state || "Not provided"}`,
       `Best contact: ${contactPreference || "Not provided"}`,
       `Support area: ${support || "Not provided"}`,
-      `Previous clinic experience: ${history || "Not provided"}`,
+      `Previous telehealth experience: ${history || "Not provided"}`,
       "",
       "Short intake note:",
       message || "No note provided.",
