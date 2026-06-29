@@ -1,14 +1,14 @@
 <!doctype html>
-<html lang="en" data-theme="dark">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta
       name="description"
-      content="Crossroads Holistic Clinic is a dark-first, product-aware telehealth clinic experience with public medicinal cannabis product discovery, consult checkout, and cannabis review tools."
+      content="Crossroads Holistic Clinic offers low-friction new patient signup, unbiased holistic intake, doctor matching, and patient portal access after onboarding."
     />
     <meta name="theme-color" content="#050805" />
-    <title>Crossroads Holistic Clinic | Know Your Options First</title>
+    <title>Crossroads Holistic Clinic | Patient-First Signup</title>
     <link rel="icon" href="/crossroads-mark.png" />
     <link rel="stylesheet" href="/styles.css" />
   </head>
@@ -23,12 +23,12 @@
         <span></span>
       </button>
       <nav class="site-nav" id="site-nav" data-nav>
-        <a href="#checkout">Start</a>
-        <a href="#library">Products</a>
-        <a href="#reviews">Reviews</a>
-        <a href="#care">Care</a>
-        <button class="theme-toggle" type="button" data-theme-toggle aria-label="Switch colour theme">Clean mode</button>
-        <a class="nav-cta" href="#checkout">Build shortlist</a>
+        <a href="#start">Start</a>
+        <a href="#care">Why us</a>
+        <a href="#pathway">Pathway</a>
+        <a href="#portal">Portal</a>
+        <a href="#faq">FAQ</a>
+        <a class="nav-cta" href="#start">Sign up</a>
       </nav>
     </header>
 
@@ -37,295 +37,243 @@
         <div class="hero-grid">
           <div class="hero-copy">
             <img class="hero-mark" src="/crossroads-mark.png" alt="" />
-            <p class="eyebrow">Independent product-aware telehealth</p>
-            <h1>Know your options before the consult.</h1>
+            <p class="eyebrow">Low-friction holistic intake</p>
+            <h1>Start with a real conversation, not a product menu.</h1>
             <p class="lead">
-              Crossroads helps patients explore medicinal cannabis categories, compare review signals, and bring a prepared shortlist into a doctor-led appointment.
+              Crossroads is built for patients who want fair, non-biased care. Sign up in a minute, tell us what you need, and we will help match you with the right doctor for your goals.
             </p>
             <div class="hero-actions">
-              <a class="button primary" href="#checkout">Start consult checkout</a>
-              <a class="button ghost" href="#library">Browse public library</a>
+              <a class="button primary" href="#start">Start new patient signup</a>
+              <a class="button ghost" href="#pathway">See the pathway</a>
             </div>
             <div class="trust-row" aria-label="Clinic commitments">
-              <span>Public product discovery</span>
-              <span>Doctor-led assessment</span>
-              <span>Pharmacy choice ready</span>
+              <span>No brand kickbacks</span>
+              <span>Patient-first matching</span>
+              <span>Portal access after signup</span>
             </div>
           </div>
 
-          <aside class="checkout-card" id="checkout">
+          <aside class="signup-card" id="start">
             <div class="panel-brand">
               <img src="/crossroads-mark.png" alt="" />
               <div>
-                <p>Checkout</p>
-                <strong>Consult setup</strong>
+                <p>Start here</p>
+                <strong>New patient signup</strong>
               </div>
             </div>
-            <div class="checkout-steps" aria-label="Checkout steps">
+            <div class="signup-steps" aria-label="Signup steps">
               <span class="active">Details</span>
-              <span>Shortlist</span>
-              <span>Clinician</span>
+              <span>Intake</span>
+              <span>Portal</span>
             </div>
             <form class="signup-form" data-enquiry-form>
+              <div class="field-grid">
+                <label>
+                  Full name
+                  <input name="name" autocomplete="name" required />
+                </label>
+                <label>
+                  Email
+                  <input type="email" name="email" autocomplete="email" required />
+                </label>
+              </div>
+              <div class="field-grid">
+                <label>
+                  Phone
+                  <input name="phone" autocomplete="tel" />
+                </label>
+                <label>
+                  State
+                  <select name="state" required>
+                    <option value="">Choose</option>
+                    <option>ACT</option>
+                    <option>NSW</option>
+                    <option>NT</option>
+                    <option>QLD</option>
+                    <option>SA</option>
+                    <option>TAS</option>
+                    <option>VIC</option>
+                    <option>WA</option>
+                  </select>
+                </label>
+              </div>
               <label>
-                Full name
-                <input name="name" autocomplete="name" required />
-              </label>
-              <label>
-                Email
-                <input type="email" name="email" autocomplete="email" required />
-              </label>
-              <label>
-                What are you hoping to improve?
-                <select name="goal" required>
+                What are you looking for help with?
+                <select name="support" required>
                   <option value="">Choose one</option>
-                  <option>Pain support</option>
                   <option>Sleep support</option>
+                  <option>Pain support</option>
                   <option>Anxiety or mood support</option>
-                  <option>Product review consult</option>
+                  <option>General holistic care</option>
+                  <option>Second opinion or product pathway review</option>
                   <option>Other</option>
                 </select>
               </label>
               <label>
-                Anything the clinician should know?
-                <textarea name="message" rows="3" placeholder="Example: balanced oil, flower alternatives, lower-cost options"></textarea>
+                Short note for intake
+                <textarea name="message" rows="3" placeholder="Keep it brief. The full medical intake happens after signup."></textarea>
               </label>
-              <button class="button primary full" type="submit">Send my shortlist</button>
-              <p class="form-note" data-form-status>No product is sold or prescribed here. Your shortlist is reviewed in a clinical consult.</p>
+              <label class="check-row">
+                <input type="checkbox" name="consent" required />
+                <span>I understand this is a signup enquiry, not medical advice or emergency care.</span>
+              </label>
+              <button class="button primary full" type="submit">Request next step</button>
+              <p class="form-note" data-form-status>We keep signup light. Detailed medical history belongs in the patient portal.</p>
             </form>
           </aside>
         </div>
       </section>
 
-      <section class="proof-strip" aria-label="Crossroads product model">
-        <p><strong>1,200+ ready</strong><span>Built for bulk SAS/AP product-list import.</span></p>
-        <p><strong>Review-first</strong><span>Compare categories and patient-reported signals.</span></p>
-        <p><strong>No locked door</strong><span>Browse before login, then bring preferences to care.</span></p>
-      </section>
-
-      <section class="checkout-flow">
-        <div class="section-copy">
-          <p class="eyebrow">Checkout-style onboarding</p>
-          <h2>Simple like a cart. Clinical where it counts.</h2>
-          <p>
-            Patients can select a consult path, add product interests to a shortlist, and submit everything before speaking with a doctor or nurse practitioner. The clinician still decides suitability.
-          </p>
-        </div>
-        <div class="flow-grid">
-          <article>
-            <span>01</span>
-            <h3>Choose a consult</h3>
-            <p>Initial appointment, review consult, or product pathway discussion.</p>
-          </article>
-          <article>
-            <span>02</span>
-            <h3>Add preferences</h3>
-            <p>Filter product categories and save the ones worth discussing.</p>
-          </article>
-          <article>
-            <span>03</span>
-            <h3>Continue after sign-up</h3>
-            <p>After assessment, patients can manage repeats, pharmacy steps, and eligible add-ons in one account menu.</p>
-          </article>
-        </div>
-      </section>
-
-      <section class="library" id="library">
-        <div class="section-heading">
-          <div>
-            <p class="eyebrow">Public product discovery</p>
-            <h2>Cannabis product library, without the MedAuth wall.</h2>
-          </div>
-          <p>
-            This interface is ready for a full TGA SAS/AP product-list import and patient review data. The sample cards show the browsing experience; real products can be loaded once you provide the dataset you are allowed to use.
-          </p>
-        </div>
-
-        <div class="library-toolbar">
-          <label class="search-field">
-            Search products
-            <input type="search" placeholder="Search format, category, cannabinoid..." data-product-search />
-          </label>
-          <div class="filter-tabs" data-filter-tabs>
-            <button type="button" class="active" data-filter="all">All</button>
-            <button type="button" data-filter="flower">Flower</button>
-            <button type="button" data-filter="oil">Oil</button>
-            <button type="button" data-filter="capsule">Capsules</button>
-            <button type="button" data-filter="vape">Vape</button>
-          </div>
-        </div>
-
-        <div class="product-area">
-          <div class="product-grid" data-product-grid>
-            <article class="product-card" data-category="flower" data-search="flower indica thc night pain sleep budget terpene">
-              <p class="tag">Flower</p>
-              <h3>Night flower shortlist</h3>
-              <p>For patients wanting to discuss inhaled formats, terpene profile, cost, and review patterns.</p>
-              <dl>
-                <div><dt>Review signal</dt><dd>Sleep, pain, unwind</dd></div>
-                <div><dt>Data source</dt><dd>Import ready</dd></div>
-              </dl>
-              <button type="button" data-shortlist="Night flower shortlist">Add to shortlist</button>
-            </article>
-            <article class="product-card" data-category="oil" data-search="oil balanced cbd thc daytime anxiety sleep titration">
-              <p class="tag">Oil</p>
-              <h3>Balanced oil options</h3>
-              <p>Compare bottle size, cannabinoid ratio, titration notes, and patient-reported tolerance.</p>
-              <dl>
-                <div><dt>Review signal</dt><dd>Steady, discreet, measured</dd></div>
-                <div><dt>Data source</dt><dd>TGA list import</dd></div>
-              </dl>
-              <button type="button" data-shortlist="Balanced oil options">Add to shortlist</button>
-            </article>
-            <article class="product-card" data-category="capsule" data-search="capsule edible cbd thc precise dose travel oral">
-              <p class="tag">Capsule</p>
-              <h3>Precise-dose formats</h3>
-              <p>For patients who prefer measured oral formats and simple repeatable routines.</p>
-              <dl>
-                <div><dt>Review signal</dt><dd>Routine, stable, low fuss</dd></div>
-                <div><dt>Data source</dt><dd>Import ready</dd></div>
-              </dl>
-              <button type="button" data-shortlist="Precise-dose formats">Add to shortlist</button>
-            </article>
-            <article class="product-card" data-category="vape" data-search="vape cartridge rapid onset day night flower alternative">
-              <p class="tag">Vape</p>
-              <h3>Rapid-onset alternatives</h3>
-              <p>Review device compatibility, onset preferences, and formulation considerations.</p>
-              <dl>
-                <div><dt>Review signal</dt><dd>Fast onset, portable</dd></div>
-                <div><dt>Data source</dt><dd>Import ready</dd></div>
-              </dl>
-              <button type="button" data-shortlist="Rapid-onset alternatives">Add to shortlist</button>
-            </article>
-            <article class="product-card" data-category="oil" data-search="cbd oil isolate broad spectrum daytime non intoxicating">
-              <p class="tag">CBD</p>
-              <h3>CBD-focused discussion</h3>
-              <p>Designed for patients wanting to compare CBD-forward products and practical cost ranges.</p>
-              <dl>
-                <div><dt>Review signal</dt><dd>Daytime, clear, gentle</dd></div>
-                <div><dt>Data source</dt><dd>TGA list import</dd></div>
-              </dl>
-              <button type="button" data-shortlist="CBD-focused discussion">Add to shortlist</button>
-            </article>
-            <article class="product-card" data-category="flower" data-search="concession budget flower value strain reviews price availability">
-              <p class="tag">Value</p>
-              <h3>Budget-aware choices</h3>
-              <p>Shortlist lower-cost options so affordability can be discussed before a plan is written.</p>
-              <dl>
-                <div><dt>Review signal</dt><dd>Value, access, supply</dd></div>
-                <div><dt>Data source</dt><dd>Import ready</dd></div>
-              </dl>
-              <button type="button" data-shortlist="Budget-aware choices">Add to shortlist</button>
-            </article>
-          </div>
-
-          <aside class="shortlist-panel" data-shortlist-panel>
-            <div>
-              <p class="eyebrow">Your consult shortlist</p>
-              <h3 data-shortlist-heading>Nothing selected yet.</h3>
-              <p>Add product categories and they will be included in your enquiry email.</p>
-            </div>
-            <ul data-shortlist-list></ul>
-          </aside>
-        </div>
-      </section>
-
-      <section class="reviews" id="reviews">
-        <div class="review-copy">
-          <p class="eyebrow">Cannabis reviews category</p>
-          <h2>Reviews that help people ask better questions.</h2>
-          <p>
-            The review layer can hold patient-reported effects, value notes, supply consistency, pharmacy feedback, and side-effect flags. It should prepare the consult, not replace medical advice.
-          </p>
-        </div>
-        <div class="review-stats">
-          <article><strong>Public</strong><span>No login wall for browsing</span></article>
-          <article><strong>Effects</strong><span>Sleep, pain, mood, focus</span></article>
-          <article><strong>Value</strong><span>Price and supply notes</span></article>
-          <article><strong>Safety</strong><span>Side-effect signals</span></article>
-        </div>
-      </section>
-
-      <section class="account-menu">
-        <div class="section-heading">
-          <div>
-            <p class="eyebrow">After sign-up</p>
-            <h2>A patient account that feels like a real service.</h2>
-          </div>
-          <p>
-            Once a patient is assessed, the menu can expand from consult intake into repeat requests, pharmacy handoff, eligible product discussions, and general wellness add-ons.
-          </p>
-        </div>
-        <div class="menu-preview" aria-label="Patient account menu preview">
-          <article class="active">
-            <span>01</span>
-            <h3>Consult status</h3>
-            <p>Booked, complete, awaiting clinician review.</p>
-          </article>
-          <article>
-            <span>02</span>
-            <h3>Product shortlist</h3>
-            <p>Saved preferences and notes for the next appointment.</p>
-          </article>
-          <article>
-            <span>03</span>
-            <h3>Pharmacy pathway</h3>
-            <p>Dispensing steps after a valid prescription.</p>
-          </article>
-          <article>
-            <span>04</span>
-            <h3>Shop add-ons</h3>
-            <p>Non-prescription support items and future eligible services.</p>
-          </article>
-        </div>
+      <section class="proof-strip" aria-label="Crossroads principles">
+        <p><strong>No kickbacks</strong><span>We are not here to push a brand's product menu.</span></p>
+        <p><strong>Low resistance</strong><span>Signup first. Clear fees and next steps before booking.</span></p>
+        <p><strong>Real matching</strong><span>We listen first, then help find the right doctor fit.</span></p>
       </section>
 
       <section class="care" id="care">
         <div class="section-copy">
-          <p class="eyebrow">Patient-first care</p>
-          <h2>Choice before pressure.</h2>
+          <p class="eyebrow">Why Crossroads</p>
+          <h2>Holistic means the patient comes before the profit.</h2>
           <p>
-            Crossroads can position itself around transparent options, pharmacy choice, and a consult model where product preference is visible before the appointment.
+            The first job is understanding the person in front of us: what has been tried, what they are hoping to change, and what type of clinician will suit them best.
           </p>
         </div>
         <div class="care-grid">
           <article>
-            <h3>No narrow menu pitch</h3>
-            <p>Patients can discuss products they have researched rather than only seeing a closed list.</p>
+            <span>01</span>
+            <h3>Non-biased care</h3>
+            <p>Crossroads is positioned around patient needs, not manufacturer incentives, pharmacy lock-ins, or a narrow product menu.</p>
           </article>
           <article>
-            <h3>Clinician still decides</h3>
-            <p>The website supports preparation; suitability, dosage, and prescribing remain clinical decisions.</p>
+            <span>02</span>
+            <h3>Human intake</h3>
+            <p>New patients should feel heard before they are assessed. We filter for goals, preferences, and suitability before matching care.</p>
           </article>
           <article>
-            <h3>Open pharmacy pathway</h3>
-            <p>Messaging can support patient choice while keeping dispensing through licensed Australian pharmacies.</p>
+            <span>03</span>
+            <h3>Doctor matched to need</h3>
+            <p>The aim is to connect each patient with the best doctor pathway for them, not the quickest script pathway for the clinic.</p>
           </article>
+        </div>
+      </section>
+
+      <section class="pathway" id="pathway">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Simple pathway</p>
+            <h2>From signup to portal without the runaround.</h2>
+          </div>
+          <p>
+            Keep the front door easy. Patients should not need to fight through a heavy form or product funnel before they know whether Crossroads is the right place for them.
+          </p>
+        </div>
+        <ol class="steps">
+          <li>
+            <span>1</span>
+            <h3>Quick signup</h3>
+            <p>Name, contact details, state, and a broad reason for reaching out.</p>
+          </li>
+          <li>
+            <span>2</span>
+            <h3>Intake review</h3>
+            <p>A real person reviews what the patient needs and identifies the best next step.</p>
+          </li>
+          <li>
+            <span>3</span>
+            <h3>Doctor match</h3>
+            <p>The patient is guided toward a suitable clinician rather than pushed through a one-size-fits-all flow.</p>
+          </li>
+          <li>
+            <span>4</span>
+            <h3>Portal invite</h3>
+            <p>After signup, the patient portal can hold intake, bookings, follow-ups, and later the TGA product list.</p>
+          </li>
+        </ol>
+      </section>
+
+      <section class="portal" id="portal">
+        <div class="portal-copy">
+          <p class="eyebrow">After signup</p>
+          <h2>The patient portal comes next.</h2>
+          <p>
+            The public website stays simple. Once someone signs up, they can be invited into a private portal for their profile, appointment status, clinician notes, follow-up tasks, and the future product library.
+          </p>
+        </div>
+        <div class="portal-preview" aria-label="Patient portal preview">
+          <div class="portal-topbar">
+            <span></span>
+            <strong>Patient portal</strong>
+          </div>
+          <div class="portal-menu">
+            <article class="active">
+              <small>01</small>
+              <h3>Intake profile</h3>
+              <p>Patient details and consent.</p>
+            </article>
+            <article>
+              <small>02</small>
+              <h3>Appointments</h3>
+              <p>Booking and consult status.</p>
+            </article>
+            <article>
+              <small>03</small>
+              <h3>Care pathway</h3>
+              <p>Doctor matching and next steps.</p>
+            </article>
+            <article class="locked">
+              <small>Later</small>
+              <h3>TGA product list</h3>
+              <p>Available products module added after the portal build.</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="crm">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Patient tracking</p>
+            <h2>A simple CRM pipeline behind the front door.</h2>
+          </div>
+          <p>
+            The first CRM should track patients through signup, intake, doctor matching, portal invite, and follow-up without collecting more sensitive information than needed on the public form.
+          </p>
+        </div>
+        <div class="pipeline" aria-label="CRM pipeline preview">
+          <article><strong>New signup</strong><span>Website enquiry received</span></article>
+          <article><strong>Intake review</strong><span>Need and location checked</span></article>
+          <article><strong>Doctor match</strong><span>Best clinician selected</span></article>
+          <article><strong>Portal invite</strong><span>Private onboarding starts</span></article>
+          <article><strong>Follow-up due</strong><span>Patient is not forgotten</span></article>
         </div>
       </section>
 
       <section class="faq" id="faq">
         <div class="section-heading">
           <div>
-            <p class="eyebrow">Compliance-aware</p>
-            <h2>Important guardrails.</h2>
+            <p class="eyebrow">Plain answers</p>
+            <h2>Keep it clear from day one.</h2>
           </div>
           <p>
-            This site can be product-aware without selling prescription medicines directly. Public product discovery needs careful wording and clinical disclaimers.
+            The site should feel easy to enter, clear about what happens next, and honest about what happens only after clinical assessment.
           </p>
         </div>
         <div class="faq-list">
           <details>
-            <summary>Can patients buy cannabis products before speaking to a doctor?</summary>
-            <p>No. The product library is for education and preference capture. Any prescription product requires a valid clinical assessment and lawful pharmacy dispensing.</p>
+            <summary>Is there a heavy upfront fee?</summary>
+            <p>No. The signup page is intentionally low resistance. Any consult fee or service cost should be shown clearly before a patient books or commits.</p>
           </details>
           <details>
-            <summary>Can the TGA product list be imported?</summary>
-            <p>Yes. The interface is ready for a bulk import. The TGA describes these as unapproved medicinal cannabis products supplied through SAS/AP pathways, so the site should avoid calling them approved consumer products.</p>
+            <summary>Do patients see products before signing up?</summary>
+            <p>No. The public site stays simple. Product information belongs inside the future patient portal and must still sit behind proper clinical assessment and lawful pharmacy dispensing.</p>
           </details>
           <details>
-            <summary>Can Canna Reviews data be made public here?</summary>
-            <p>Yes, if you provide data you are allowed to use. Protected MedAuth content should not be scraped, but an authorised export can be imported into a searchable public library.</p>
+            <summary>Is Crossroads tied to brand kickbacks?</summary>
+            <p>The site is written around a non-biased model: patients first, doctor matching second, products only where clinically appropriate.</p>
+          </details>
+          <details>
+            <summary>What CRM should this use?</summary>
+            <p>Start with a secure lead pipeline and minimal public-form data. The database should be connected only when the storage, access control, and privacy workflow are ready.</p>
           </details>
         </div>
       </section>
@@ -333,17 +281,17 @@
       <section class="final-cta">
         <img src="/crossroads-mark.png" alt="" />
         <div>
-          <p class="eyebrow">Build it properly</p>
-          <h2>Start with the consult. Bring the shortlist.</h2>
-          <p>Patients can arrive informed, clinicians can assess safely, and the clinic can stop feeling like a locked product menu.</p>
+          <p class="eyebrow">Real care. Real change.</p>
+          <h2>Simple signup. Patient-first matching.</h2>
+          <p>Crossroads can be the clinic that listens first, filters carefully, and does not let product incentives decide the patient's pathway.</p>
         </div>
-        <a class="button primary" href="#checkout">Start checkout</a>
+        <a class="button primary" href="#start">Start signup</a>
       </section>
     </main>
 
     <footer class="site-footer">
       <img src="/crossroads-wordmark.png" alt="Crossroads Holistic Clinic" />
-      <p>General information only. Product discovery does not replace medical advice, prescription approval, or pharmacy dispensing requirements.</p>
+      <p>General information only. Signup does not replace medical advice, clinical assessment, prescription approval, or pharmacy dispensing requirements.</p>
     </footer>
 
     <script type="module" src="/script.js"></script>

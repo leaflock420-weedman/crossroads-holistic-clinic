@@ -1,0 +1,66 @@
+{
+  "name": "Crossroads new patient intake",
+  "purpose": "Minimal lead capture before a private patient portal and clinical intake.",
+  "version": "1.0.0",
+  "publicFormFields": [
+    {
+      "key": "name",
+      "label": "Full name",
+      "type": "text",
+      "required": true
+    },
+    {
+      "key": "email",
+      "label": "Email",
+      "type": "email",
+      "required": true
+    },
+    {
+      "key": "phone",
+      "label": "Phone",
+      "type": "tel",
+      "required": false
+    },
+    {
+      "key": "state",
+      "label": "State",
+      "type": "select",
+      "required": true
+    },
+    {
+      "key": "support",
+      "label": "Support area",
+      "type": "select",
+      "required": true
+    },
+    {
+      "key": "message",
+      "label": "Short intake note",
+      "type": "textarea",
+      "required": false,
+      "privacyNote": "Keep public-form notes brief. Detailed medical history should be collected inside a secure portal."
+    },
+    {
+      "key": "consent",
+      "label": "Signup enquiry consent",
+      "type": "checkbox",
+      "required": true
+    }
+  ],
+  "crmStages": [
+    "New signup",
+    "Intake review",
+    "Doctor match",
+    "Portal invite sent",
+    "Portal active",
+    "Follow-up due",
+    "Closed"
+  ],
+  "futurePortalModules": [
+    "Patient profile",
+    "Appointment status",
+    "Care pathway",
+    "Follow-up tasks",
+    "TGA product list"
+  ]
+}
