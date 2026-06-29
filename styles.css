@@ -353,13 +353,51 @@ h3 {
 
 .signup-form {
   display: grid;
-  gap: 10px;
+  gap: 12px;
+}
+
+.form-step {
+  display: none;
+  gap: 12px;
+}
+
+.form-step.is-active {
+  display: grid;
+}
+
+.form-step[hidden] {
+  display: none;
+}
+
+.form-intro {
+  margin: -4px 0 16px;
+  padding: 12px 13px;
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.045);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-size: 0.9rem;
 }
 
 .field-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
+}
+
+.step-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 2px;
+}
+
+.split-actions {
+  display: grid;
+  grid-template-columns: minmax(110px, 0.55fr) minmax(0, 1fr);
+}
+
+.step-actions .button {
+  width: 100%;
 }
 
 label {
@@ -382,6 +420,10 @@ textarea {
   border-radius: 8px;
 }
 
+select {
+  appearance: auto;
+}
+
 textarea {
   resize: vertical;
 }
@@ -398,6 +440,115 @@ button:focus-visible,
 a:focus-visible {
   outline: 3px solid rgba(156, 255, 46, 0.36);
   outline-offset: 2px;
+}
+
+fieldset {
+  min-width: 0;
+}
+
+.choice-group {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  padding: 0;
+  margin: 0;
+  border: 0;
+}
+
+.choice-group legend {
+  grid-column: 1 / -1;
+  padding: 0;
+  margin: 0 0 2px;
+  color: var(--soft);
+  font-size: 0.9rem;
+  font-weight: 820;
+}
+
+.choice-card,
+.choice-pill {
+  position: relative;
+  display: block;
+  color: var(--soft);
+}
+
+.choice-card input,
+.choice-pill input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.choice-card-body {
+  display: grid;
+  gap: 4px;
+  min-height: 92px;
+  padding: 13px;
+  background: rgba(255, 255, 255, 0.045);
+  border: 1px solid var(--field-border);
+  border-radius: 8px;
+  transition: background 160ms ease, border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+.choice-card-body strong {
+  font-size: 0.98rem;
+  line-height: 1.2;
+}
+
+.choice-card-body small {
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+.choice-card input:checked + .choice-card-body,
+.choice-pill input:checked + span {
+  color: #071007;
+  background: var(--lime);
+  border-color: transparent;
+  box-shadow: 0 12px 28px rgba(77, 255, 46, 0.16);
+}
+
+.choice-card input:checked + .choice-card-body small {
+  color: rgba(7, 16, 7, 0.72);
+}
+
+.choice-card input:focus-visible + .choice-card-body,
+.choice-pill input:focus-visible + span {
+  outline: 3px solid rgba(156, 255, 46, 0.36);
+  outline-offset: 2px;
+}
+
+.choice-card:hover .choice-card-body,
+.choice-pill:hover span {
+  border-color: var(--line-strong);
+  transform: translateY(-1px);
+}
+
+.small-choice-group {
+  grid-template-columns: 1fr;
+}
+
+.choice-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.choice-pill span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 42px;
+  padding: 9px 12px;
+  background: rgba(255, 255, 255, 0.045);
+  border: 1px solid var(--field-border);
+  border-radius: 8px;
+  font-size: 0.88rem;
+  font-weight: 850;
+  transition: background 160ms ease, border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
 }
 
 .check-row {
@@ -816,10 +967,25 @@ summary {
 
   .signup-steps,
   .field-grid,
+  .choice-group,
   .steps,
   .portal-menu,
   .pipeline {
     grid-template-columns: 1fr;
+  }
+
+  .choice-row {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .split-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .choice-pill span {
+    width: 100%;
+    justify-content: center;
   }
 
   section {

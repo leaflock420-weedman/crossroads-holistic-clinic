@@ -61,64 +61,129 @@
                 <strong>New patient signup</strong>
               </div>
             </div>
-            <div class="signup-steps" aria-label="Signup steps">
-              <span class="active">Details</span>
-              <span>Intake</span>
-              <span>Portal</span>
+            <div class="signup-steps" aria-label="Signup steps" data-step-indicators>
+              <span class="active" data-step-indicator="0">Contact</span>
+              <span data-step-indicator="1">Needs</span>
+              <span data-step-indicator="2">Next step</span>
             </div>
+            <p class="form-intro">No payment on this form. No long medical history. Just enough for a real person to guide the next step.</p>
             <form class="signup-form" data-enquiry-form>
-              <div class="field-grid">
+              <div class="form-step is-active" data-form-step="0">
                 <label>
                   Full name
-                  <input name="name" autocomplete="name" required />
+                  <input name="name" autocomplete="name" placeholder="Jane Smith" required />
                 </label>
-                <label>
-                  Email
-                  <input type="email" name="email" autocomplete="email" required />
-                </label>
+                <div class="field-grid">
+                  <label>
+                    Email
+                    <input type="email" name="email" autocomplete="email" placeholder="you@email.com" required />
+                  </label>
+                  <label>
+                    Mobile
+                    <input name="phone" autocomplete="tel" inputmode="tel" placeholder="04..." />
+                  </label>
+                </div>
+                <div class="field-grid compact-grid">
+                  <label>
+                    State
+                    <select name="state" required>
+                      <option value="">Choose</option>
+                      <option>ACT</option>
+                      <option>NSW</option>
+                      <option>NT</option>
+                      <option>QLD</option>
+                      <option>SA</option>
+                      <option>TAS</option>
+                      <option>VIC</option>
+                      <option>WA</option>
+                    </select>
+                  </label>
+                  <label>
+                    Best contact
+                    <select name="contactPreference">
+                      <option value="">Choose</option>
+                      <option>SMS first</option>
+                      <option>Email first</option>
+                      <option>Phone call</option>
+                    </select>
+                  </label>
+                </div>
+                <div class="step-actions">
+                  <button class="button primary full" type="button" data-next-step>Continue</button>
+                </div>
               </div>
-              <div class="field-grid">
-                <label>
-                  Phone
-                  <input name="phone" autocomplete="tel" />
-                </label>
-                <label>
-                  State
-                  <select name="state" required>
-                    <option value="">Choose</option>
-                    <option>ACT</option>
-                    <option>NSW</option>
-                    <option>NT</option>
-                    <option>QLD</option>
-                    <option>SA</option>
-                    <option>TAS</option>
-                    <option>VIC</option>
-                    <option>WA</option>
-                  </select>
-                </label>
+
+              <div class="form-step" data-form-step="1" hidden>
+                <fieldset class="choice-group">
+                  <legend>What do you want help with?</legend>
+                  <label class="choice-card">
+                    <input type="radio" name="support" value="Sleep support" required />
+                    <span class="choice-card-body">
+                      <strong>Sleep</strong>
+                      <small>Rest, routine, staying asleep.</small>
+                    </span>
+                  </label>
+                  <label class="choice-card">
+                    <input type="radio" name="support" value="Pain support" />
+                    <span class="choice-card-body">
+                      <strong>Pain</strong>
+                      <small>Chronic pain, flare-ups, recovery.</small>
+                    </span>
+                  </label>
+                  <label class="choice-card">
+                    <input type="radio" name="support" value="Anxiety or mood support" />
+                    <span class="choice-card-body">
+                      <strong>Anxiety or mood</strong>
+                      <small>Calm, stress, day-to-day function.</small>
+                    </span>
+                  </label>
+                  <label class="choice-card">
+                    <input type="radio" name="support" value="General holistic care" />
+                    <span class="choice-card-body">
+                      <strong>Not sure yet</strong>
+                      <small>Tell us broadly and we will guide you.</small>
+                    </span>
+                  </label>
+                </fieldset>
+
+                <fieldset class="choice-group small-choice-group">
+                  <legend>Have you used a prescription cannabis clinic before?</legend>
+                  <div class="choice-row">
+                    <label class="choice-pill">
+                      <input type="radio" name="history" value="New patient" />
+                      <span>New to this</span>
+                    </label>
+                    <label class="choice-pill">
+                      <input type="radio" name="history" value="Has previous clinic experience" />
+                      <span>Yes</span>
+                    </label>
+                    <label class="choice-pill">
+                      <input type="radio" name="history" value="Not sure" />
+                      <span>Not sure</span>
+                    </label>
+                  </div>
+                </fieldset>
+                <div class="step-actions split-actions">
+                  <button class="button ghost" type="button" data-back-step>Back</button>
+                  <button class="button primary" type="button" data-next-step>Continue</button>
+                </div>
               </div>
-              <label>
-                What are you looking for help with?
-                <select name="support" required>
-                  <option value="">Choose one</option>
-                  <option>Sleep support</option>
-                  <option>Pain support</option>
-                  <option>Anxiety or mood support</option>
-                  <option>General holistic care</option>
-                  <option>Second opinion or product pathway review</option>
-                  <option>Other</option>
-                </select>
-              </label>
-              <label>
-                Short note for intake
-                <textarea name="message" rows="3" placeholder="Keep it brief. The full medical intake happens after signup."></textarea>
-              </label>
-              <label class="check-row">
-                <input type="checkbox" name="consent" required />
-                <span>I understand this is a signup enquiry, not medical advice or emergency care.</span>
-              </label>
-              <button class="button primary full" type="submit">Request next step</button>
-              <p class="form-note" data-form-status>We keep signup light. Detailed medical history belongs in the patient portal.</p>
+
+              <div class="form-step" data-form-step="2" hidden>
+                <label>
+                  Anything we should know before we contact you?
+                  <textarea name="message" rows="3" placeholder="Optional. Keep it short; the proper intake happens in the portal."></textarea>
+                </label>
+                <label class="check-row">
+                  <input type="checkbox" name="consent" required />
+                  <span>I understand this is a signup enquiry, not medical advice or emergency care.</span>
+                </label>
+                <div class="step-actions split-actions">
+                  <button class="button ghost" type="button" data-back-step>Back</button>
+                  <button class="button primary" type="submit">Send my intake request</button>
+                </div>
+                <p class="form-note" data-form-status>Takes about 60 seconds. We will review it and guide the next step.</p>
+              </div>
             </form>
           </aside>
         </div>

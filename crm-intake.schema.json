@@ -28,10 +28,22 @@
       "required": true
     },
     {
+      "key": "contactPreference",
+      "label": "Best contact",
+      "type": "select",
+      "required": false
+    },
+    {
       "key": "support",
       "label": "Support area",
-      "type": "select",
+      "type": "radio",
       "required": true
+    },
+    {
+      "key": "history",
+      "label": "Previous prescription cannabis clinic experience",
+      "type": "radio",
+      "required": false
     },
     {
       "key": "message",
