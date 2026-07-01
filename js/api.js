@@ -1,5 +1,8 @@
 import { demoApi, DEMO_ACCOUNT_HINT, isKnownDemoEmail } from "./demo-api.js";
 
+const API_HOST = import.meta.env.VITE_API_HOST || "";
+const API_BASE = API_HOST ? (API_HOST.startsWith("http") ? API_HOST : `https://${API_HOST}`) : "";
+
 const API_MODE_KEY = "crossroads-api-mode";
 let TOKEN_KEY = "crossroads-auth-token";
 let apiMode = null;
@@ -46,9 +49,14 @@ export async function resolveApiMode() {
   return detectApiMode();
 }
 
+function apiUrl(path) {
+  if (path.startsWith("http")) return path;
+  return `${API_BASE}${path}`;
+}
+
 async function detectApiMode() {
   try {
-    const res = await fetch("/api/health", { headers: { Accept: "application/json" } });
+    const res = await fetch(apiUrl("/api/health"), { headers: { Accept: "application/json" } });
     const text = await res.text();
     const trimmed = text.trim();
     if (trimmed.startsWith("{")) {
@@ -83,7 +91,7 @@ async function fetchLive(path, options = {}) {
   const token = getToken();
   if (token) headers.Authorization = `Bearer ${token}`;
 
-  const res = await fetch(path, { ...options, headers });
+  const res = await fetch(apiUrl(path), { ...options, headers });
   const text = await res.text();
   let data = {};
   try {

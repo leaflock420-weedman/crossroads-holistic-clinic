@@ -1,9 +1,9 @@
 import { resolveApiMode, isDemoMode } from "./api.js";
 import { getSites } from "./sites.js";
 
-function bannerCopy(live, subdomainMode) {
-  if (live && subdomainMode) {
-    return `<span class="connection-banner__dot"></span><strong>Live · ${window.location.hostname}</strong> — this portal runs on its own subdomain and shares the clinic database with the other portals.`;
+function bannerCopy(live, subdomainMode, sites) {
+  if (live && (subdomainMode || sites?.mode === "split")) {
+    return `<span class="connection-banner__dot"></span><strong>Live · ${window.location.hostname}</strong> — this portal runs separately and shares the clinic API with the other portals.`;
   }
   if (live) {
     return `<span class="connection-banner__dot"></span><strong>Live server</strong> — doctor, admin, and patient portals share one database. Updates sync automatically.`;
@@ -28,7 +28,7 @@ export async function mountConnectionBanner(host) {
   const subdomainMode = sites.mode === "subdomains";
   banner.classList.toggle("connection-banner--live", live);
   banner.classList.toggle("connection-banner--demo", !live);
-  banner.innerHTML = bannerCopy(live, subdomainMode);
+  banner.innerHTML = bannerCopy(live, subdomainMode, sites);
   return mode;
 }
 
@@ -41,5 +41,5 @@ export async function refreshConnectionBanner(host) {
   const subdomainMode = sites.mode === "subdomains";
   banner.classList.toggle("connection-banner--live", live);
   banner.classList.toggle("connection-banner--demo", !live);
-  banner.innerHTML = bannerCopy(live, subdomainMode);
+  banner.innerHTML = bannerCopy(live, subdomainMode, sites);
 }

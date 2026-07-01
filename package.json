@@ -6,6 +6,11 @@
     "dev": "vite",
     "server": "node server/index.js",
     "build": "vite build",
+    "build:home": "vite build && node scripts/prepare-static-portal.mjs home",
+    "build:book": "vite build && node scripts/prepare-static-portal.mjs book",
+    "build:portal": "vite build && node scripts/prepare-static-portal.mjs portal",
+    "build:doctor": "vite build && node scripts/prepare-static-portal.mjs doctor",
+    "build:admin": "vite build && node scripts/prepare-static-portal.mjs admin",
     "start": "node server/index.js",
     "preview": "npm run build && npm start",
     "deploy": "node scripts/render-deploy.mjs"

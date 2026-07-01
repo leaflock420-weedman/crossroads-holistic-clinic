@@ -7,8 +7,29 @@ const domains = require("./domains");
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
 const DIST = path.join(__dirname, "..", "dist");
+const API_ONLY = process.env.API_ONLY === "1" || process.env.API_ONLY === "true";
+
+function allowedOrigin(origin) {
+  if (!origin) return false;
+  if (origin.endsWith(".onrender.com") || origin.endsWith(".crossroads.clinic")) return true;
+  if (origin === `https://${domains.CLINIC_DOMAIN}` || origin === `http://${domains.CLINIC_DOMAIN}`) return true;
+  const extra = (process.env.CORS_ORIGINS || "").split(",").map((s) => s.trim()).filter(Boolean);
+  return extra.includes(origin);
+}
 
 app.use(express.json({ limit: "1mb" }));
+
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  if (origin && allowedOrigin(origin)) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+    res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+    res.setHeader("Vary", "Origin");
+  }
+  if (req.method === "OPTIONS") return res.sendStatus(204);
+  next();
+});
 
 app.use((req, res, next) => {
   if (req.path.startsWith("/api/")) {
@@ -298,7 +319,12 @@ function sendDist(file, res) {
   res.sendFile(path.join(DIST, file));
 }
 
-app.use((req, res, next) => {
+if (API_ONLY) {
+  app.get("/", (_req, res) => {
+    res.json({ ok: true, service: "crossroads-clinic", mode: "api-only", health: "/api/health" });
+  });
+} else {
+  app.use((req, res, next) => {
   if (req.method !== "GET" && req.method !== "HEAD") return next();
 
   const ctx = domains.resolveRequest(req);
@@ -380,7 +406,9 @@ app.use((req, res) => {
   }
   sendDist("index.html", res);
 });
+}
 
 app.listen(PORT, () => {
-  console.log(`Crossroads clinic API live → http://localhost:${PORT}/api/health`);
+  const label = API_ONLY ? "API-only" : "full stack";
+  console.log(`Crossroads clinic ${label} live → http://localhost:${PORT}/api/health`);
 });

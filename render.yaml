@@ -1,21 +1,112 @@
-# Single Web Service — API + all portals. Do NOT also deploy a Static Site on this URL.
-# Custom domains (add all in Render → Settings → Custom Domains, same service):
-#   crossroads.clinic, www.crossroads.clinic, book., portal., doctor., admin., api.
+# Crossroads HC — split portals on Render (shared API, isolated frontends).
+# Delete any old Static Site on crossroads-holistic-clinic.onrender.com before applying.
+# Custom domains later: api., book., portal., doctor., admin. → matching service.
 services:
   - type: web
-    name: crossroads-holistic-clinic
+    name: crossroads-api
     runtime: node
     plan: free
-    buildCommand: npm install && npm run build
+    buildCommand: npm install
     startCommand: npm start
     healthCheckPath: /api/health
-    pullRequestPreviewsEnabled: true
     envVars:
       - key: NODE_ENV
         value: production
+      - key: API_ONLY
+        value: "1"
       - key: CLINIC_DOMAIN
         value: crossroads.clinic
       - key: ADMIN_PASSWORD
         value: CrossroadsAdmin2026
       - key: DOCTOR_PASSWORD
         value: Doctor2026
+      - key: PORTAL_URL_API
+        fromService:
+          type: web
+          name: crossroads-api
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: PORTAL_URL_HOME
+        fromService:
+          type: web
+          name: crossroads-home
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: PORTAL_URL_BOOK
+        fromService:
+          type: web
+          name: crossroads-book
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: PORTAL_URL_PORTAL
+        fromService:
+          type: web
+          name: crossroads-portal
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: PORTAL_URL_DOCTOR
+        fromService:
+          type: web
+          name: crossroads-doctor
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: PORTAL_URL_ADMIN
+        fromService:
+          type: web
+          name: crossroads-admin
+          envVarKey: RENDER_EXTERNAL_URL
+
+  - type: web
+    name: crossroads-home
+    runtime: static
+    buildCommand: npm install && npm run build:home
+    staticPublishPath: ./dist-static/home
+    envVars:
+      - key: VITE_API_HOST
+        fromService:
+          type: web
+          name: crossroads-api
+          property: host
+
+  - type: web
+    name: crossroads-book
+    runtime: static
+    buildCommand: npm install && npm run build:book
+    staticPublishPath: ./dist-static/book
+    envVars:
+      - key: VITE_API_HOST
+        fromService:
+          type: web
+          name: crossroads-api
+          property: host
+
+  - type: web
+    name: crossroads-portal
+    runtime: static
+    buildCommand: npm install && npm run build:portal
+    staticPublishPath: ./dist-static/portal
+    envVars:
+      - key: VITE_API_HOST
+        fromService:
+          type: web
+          name: crossroads-api
+          property: host
+
+  - type: web
+    name: crossroads-doctor
+    runtime: static
+    buildCommand: npm install && npm run build:doctor
+    staticPublishPath: ./dist-static/doctor
+    envVars:
+      - key: VITE_API_HOST
+        fromService:
+          type: web
+          name: crossroads-api
+          property: host
+
+  - type: web
+    name: crossroads-admin
+    runtime: static
+    buildCommand: npm install && npm run build:admin
+    staticPublishPath: ./dist-static/admin
+    envVars:
+      - key: VITE_API_HOST
+        fromService:
+          type: web
+          name: crossroads-api
+          property: host

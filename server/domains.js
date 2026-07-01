@@ -85,7 +85,29 @@ function siteUrl(portalKey, req, { path = "/" } = {}) {
   return `${protocol}://${portal.subdomain}.${CLINIC_DOMAIN}${suffix}`;
 }
 
+function envUrl(key) {
+  const raw = process.env[`PORTAL_URL_${key.toUpperCase()}`] || "";
+  if (!raw) return null;
+  return raw.startsWith("http") ? raw : `https://${raw}`;
+}
+
+function buildUrlsFromEnv() {
+  const urls = {
+    home: envUrl("home"),
+    book: envUrl("book"),
+    portal: envUrl("portal"),
+    doctor: envUrl("doctor"),
+    admin: envUrl("admin"),
+    api: envUrl("api"),
+  };
+  if (!urls.home || !urls.book || !urls.portal || !urls.doctor || !urls.admin) return null;
+  return urls;
+}
+
 function buildUrls(req) {
+  const envUrls = buildUrlsFromEnv();
+  if (envUrls) return envUrls;
+
   const host = hostName(req);
   const useSubdomains = !isPathModeHost(host);
   const protocol = requestProtocol(req);
@@ -112,8 +134,9 @@ function buildUrls(req) {
 
 function getSitesConfig(req) {
   const ctx = resolveRequest(req);
+  const envUrls = buildUrlsFromEnv();
   return {
-    mode: ctx.mode,
+    mode: envUrls ? "split" : ctx.mode,
     domain: CLINIC_DOMAIN,
     current: ctx.portal || "home",
     urls: buildUrls(req),
