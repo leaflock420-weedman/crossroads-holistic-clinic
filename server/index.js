@@ -9,6 +9,13 @@ const DIST = path.join(__dirname, "..", "dist");
 
 app.use(express.json({ limit: "1mb" }));
 
+app.use((req, res, next) => {
+  if (req.path.startsWith("/api/")) {
+    res.setHeader("Content-Type", "application/json; charset=utf-8");
+  }
+  next();
+});
+
 function auth(requiredRoles) {
   return (req, res, next) => {
     const header = req.headers.authorization || "";
@@ -24,11 +31,15 @@ function auth(requiredRoles) {
 }
 
 app.get("/api/health", (_req, res) => {
-  res.json({ ok: true, service: "crossroads-clinic" });
+  res.json({ ok: true, service: "crossroads-clinic", mode: "live" });
 });
 
 app.get("/api/config", (_req, res) => {
-  res.json({ consultFee: store.CONSULT_FEE, appointmentMinutes: store.APPOINTMENT_MINUTES });
+  res.json({
+    consultFee: store.CONSULT_FEE,
+    appointmentMinutes: store.APPOINTMENT_MINUTES,
+    newPatientMinutes: store.NEW_PATIENT_MINUTES,
+  });
 });
 
 app.get("/api/doctors", (_req, res) => {
@@ -77,6 +88,12 @@ app.post("/api/patient/reorder/:id", auth(["patient"]), (req, res) => {
   res.json(result);
 });
 
+app.post("/api/patient/prescriptions/:id/change-request", auth(["patient"]), (req, res) => {
+  const result = store.requestMedicationChange(req.session.user.id, req.params.id, req.body || {});
+  if (!result.ok) return res.status(400).json(result);
+  res.json(result);
+});
+
 app.post("/api/patient/orders", auth(["patient"]), (req, res) => {
   const result = store.placeOrder(req.session.user.id, req.body.items || []);
   if (!result.ok) return res.status(400).json(result);
@@ -106,6 +123,33 @@ app.post("/api/prescriptions", auth(["doctor", "admin"]), (req, res) => {
   res.json(result);
 });
 
+app.post("/api/doctor/change-requests/:id/approve", auth(["doctor"]), (req, res) => {
+  const result = store.approveChangeRequest(req.params.id, req.session.user.id, req.body || {});
+  if (!result.ok) return res.status(400).json(result);
+  res.json(result);
+});
+
+app.post("/api/doctor/change-requests/:id/deny", auth(["doctor"]), (req, res) => {
+  const result = store.denyChangeRequest(req.params.id, req.session.user.id, req.body?.reason);
+  if (!result.ok) return res.status(400).json(result);
+  res.json(result);
+});
+
+app.post("/api/doctor/appointments", auth(["doctor"]), (req, res) => {
+  const result = store.createAppointment({
+    ...req.body,
+    scheduledBy: req.session.user.id,
+  });
+  if (!result.ok) return res.status(400).json(result);
+  res.json(result);
+});
+
+app.put("/api/doctor/appointments/:id", auth(["doctor"]), (req, res) => {
+  const result = store.updateAppointment(req.params.id, req.body || {});
+  if (!result.ok) return res.status(404).json(result);
+  res.json(result);
+});
+
 app.post("/api/telehealth/start", auth(["doctor", "admin"]), (req, res) => {
   const result = store.startTelehealth(req.body.appointmentId, req.session.user.id);
   if (!result.ok) return res.status(400).json(result);
@@ -130,6 +174,15 @@ app.post("/api/admin/patients", auth(["admin"]), (req, res) => {
 
 app.post("/api/admin/prescriptions/:id/dispense", auth(["admin"]), (req, res) => {
   const result = store.dispensePrescription(req.params.id, req.session.user.id);
+  if (!result.ok) return res.status(400).json(result);
+  res.json(result);
+});
+
+app.post("/api/admin/appointments", auth(["admin"]), (req, res) => {
+  const result = store.createAppointment({
+    ...req.body,
+    scheduledBy: req.session.user.id,
+  });
   if (!result.ok) return res.status(400).json(result);
   res.json(result);
 });
@@ -173,8 +226,19 @@ Object.entries(cleanRoutes).forEach(([route, file]) => {
   app.get(`${route}/`, send);
 });
 
+app.get("/", (_req, res) => {
+  res.sendFile(path.join(DIST, "index.html"));
+});
+
 app.use(express.static(DIST, { index: false }));
 
+app.use((req, res) => {
+  if (req.path.startsWith("/api/")) {
+    return res.status(404).json({ error: "Not found" });
+  }
+  res.sendFile(path.join(DIST, "index.html"));
+});
+
 app.listen(PORT, () => {
-  console.log(`Crossroads clinic → http://localhost:${PORT}`);
+  console.log(`Crossroads clinic API live → http://localhost:${PORT}/api/health`);
 });

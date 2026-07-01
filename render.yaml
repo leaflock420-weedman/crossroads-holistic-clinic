@@ -1,35 +1,13 @@
+# Single Web Service — API + frontend. Do NOT also deploy a Static Site on this URL.
 services:
   - type: web
     name: crossroads-holistic-clinic
     runtime: node
+    plan: free
     buildCommand: npm install && npm run build
     startCommand: npm start
+    healthCheckPath: /api/health
     pullRequestPreviewsEnabled: true
-    routes:
-      - type: rewrite
-        source: /admin
-        destination: /admin.html
-      - type: rewrite
-        source: /admin/
-        destination: /admin.html
-      - type: rewrite
-        source: /doctor
-        destination: /doctor.html
-      - type: rewrite
-        source: /doctor/
-        destination: /doctor.html
-      - type: rewrite
-        source: /portal
-        destination: /portal.html
-      - type: rewrite
-        source: /portal/
-        destination: /portal.html
-      - type: rewrite
-        source: /start
-        destination: /start.html
-      - type: rewrite
-        source: /start/
-        destination: /start.html
     envVars:
       - key: NODE_ENV
         value: production

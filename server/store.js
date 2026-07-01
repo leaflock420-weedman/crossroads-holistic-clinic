@@ -7,6 +7,7 @@ const DATA_DIR = path.join(__dirname, "..", "data");
 const DATA_FILE = path.join(DATA_DIR, "clinic-live.json");
 const CONSULT_FEE = 49;
 const APPOINTMENT_MINUTES = 15;
+const NEW_PATIENT_MINUTES = 30;
 
 function uid(prefix = "CR") {
   return `${prefix}-${Date.now().toString(36).toUpperCase()}`;
@@ -25,6 +26,7 @@ function defaultState() {
     orders: [],
     telehealthLogs: [],
     availability: [],
+    changeRequests: [],
     sessions: {},
   };
 }
@@ -144,7 +146,8 @@ function registerPatient(payload) {
       ...payload.appointment,
       doctorId: doctor?.id || payload.appointment.doctorId || null,
       clinician: doctor?.name || payload.appointment.clinician || "First available",
-      durationMinutes: APPOINTMENT_MINUTES,
+      durationMinutes: NEW_PATIENT_MINUTES,
+      patientType: "new",
       status: "confirmed",
       type: "Initial consult",
       fee: CONSULT_FEE,
@@ -182,6 +185,7 @@ function getPatientBundle(patientId) {
     appointments: state.appointments.filter((a) => a.patientId === patientId),
     prescriptions: state.prescriptions.filter((r) => r.patientId === patientId),
     orders: state.orders.filter((o) => o.patientId === patientId),
+    changeRequests: state.changeRequests.filter((c) => c.patientId === patientId),
   };
 }
 
@@ -200,13 +204,11 @@ function updatePrescription(id, patch, actorId) {
   if (!rx) return { ok: false, error: "Prescription not found." };
   const actor = state.users.find((u) => u.id === actorId);
   const nextPatch = { ...patch };
-  if (actor?.role === "doctor" && nextPatch.status === "active") {
+  if (actor?.role === "doctor") {
     nextPatch.status = "pending_dispense";
+    nextPatch.submittedAt = new Date().toISOString();
   }
   Object.assign(rx, nextPatch, { updatedAt: new Date().toISOString(), prescribedBy: actorId });
-  if (nextPatch.status === "pending_dispense") {
-    rx.submittedAt = new Date().toISOString();
-  }
   persist();
   return { ok: true, prescription: rx };
 }
@@ -426,8 +428,10 @@ function adminOverview() {
       prescriptions: state.prescriptions.length,
       reorderRequests: state.prescriptions.filter((r) => r.status === "reorder_requested").length,
       pendingDispense: state.prescriptions.filter((r) => r.status === "pending_dispense").length,
+      changeRequests: state.changeRequests.filter((c) => c.status === "pending").length,
       orders: state.orders.length,
     },
+    changeRequests: state.changeRequests.filter((c) => c.status === "pending"),
     patients: listPatients(),
     appointments: state.appointments,
     prescriptions: state.prescriptions,
@@ -448,9 +452,109 @@ function updatePatient(id, patch) {
 function updateAppointment(id, patch) {
   const apt = state.appointments.find((a) => a.id === id);
   if (!apt) return { ok: false, error: "Appointment not found." };
+  if (patch.doctorId || patch.clinician) {
+    const doctor = resolveDoctor(patch.doctorId, patch.clinician);
+    if (doctor) {
+      patch.doctorId = doctor.id;
+      patch.clinician = doctor.name;
+    }
+  }
   Object.assign(apt, patch);
   persist();
   return { ok: true, appointment: apt };
+}
+
+function createAppointment(payload) {
+  const patient = state.patients.find((p) => p.id === payload.patientId);
+  if (!patient) return { ok: false, error: "Patient not found." };
+  const doctor = resolveDoctor(payload.doctorId || patient.assignedDoctorId, payload.clinician);
+  const isNew = payload.patientType === "new" || /initial/i.test(payload.type || "");
+  const apt = {
+    id: uid("APT"),
+    patientId: patient.id,
+    date: payload.date,
+    time: payload.time,
+    doctorId: doctor?.id || payload.doctorId || null,
+    clinician: doctor?.name || payload.clinician || "Assigned clinician",
+    format: payload.format || "Phone consult",
+    status: "confirmed",
+    type: payload.type || (isNew ? "Initial consult" : "Follow-up consult"),
+    patientType: isNew ? "new" : "existing",
+    fee: CONSULT_FEE,
+    durationMinutes: payload.durationMinutes || (isNew ? NEW_PATIENT_MINUTES : APPOINTMENT_MINUTES),
+    telehealthStatus: "scheduled",
+    scheduledBy: payload.scheduledBy || null,
+  };
+  state.appointments.push(apt);
+  if (doctor) patient.assignedDoctorId = doctor.id;
+  persist();
+  return { ok: true, appointment: apt };
+}
+
+function requestMedicationChange(patientId, prescriptionId, body) {
+  const rx = state.prescriptions.find((r) => r.id === prescriptionId && r.patientId === patientId);
+  if (!rx) return { ok: false, error: "Prescription not found." };
+  if (!["active", "reorder_requested"].includes(rx.status)) {
+    return { ok: false, error: "Only active scripts can be changed." };
+  }
+  const open = state.changeRequests.find(
+    (c) => c.prescriptionId === prescriptionId && c.status === "pending"
+  );
+  if (open) return { ok: false, error: "You already have a change request awaiting review." };
+
+  const req = {
+    id: uid("CHG"),
+    patientId,
+    prescriptionId,
+    currentName: rx.name,
+    currentForm: rx.form,
+    requestedForm: body.requestedForm || "",
+    requestedProduct: body.requestedProduct || "",
+    reason: body.reason || "out_of_stock",
+    notes: body.notes || "",
+    status: "pending",
+    createdAt: new Date().toISOString(),
+  };
+  state.changeRequests.push(req);
+  persist();
+  return { ok: true, changeRequest: req };
+}
+
+function approveChangeRequest(id, doctorId, patch) {
+  const req = state.changeRequests.find((c) => c.id === id);
+  if (!req) return { ok: false, error: "Change request not found." };
+  if (req.status !== "pending") return { ok: false, error: "Request already processed." };
+  const rx = state.prescriptions.find((r) => r.id === req.prescriptionId);
+  if (!rx) return { ok: false, error: "Prescription not found." };
+
+  const nextName = patch.name || req.requestedProduct || rx.name;
+  const nextForm = patch.form || req.requestedForm || rx.form;
+  Object.assign(rx, {
+    name: nextName,
+    form: nextForm,
+    status: "pending_dispense",
+    submittedAt: new Date().toISOString(),
+    prescribedBy: doctorId,
+    notes: patch.notes || `Approved change: ${req.reason}. ${req.notes || ""}`.trim(),
+    updatedAt: new Date().toISOString(),
+  });
+  req.status = "approved";
+  req.reviewedAt = new Date().toISOString();
+  req.reviewedBy = doctorId;
+  persist();
+  return { ok: true, changeRequest: req, prescription: rx };
+}
+
+function denyChangeRequest(id, doctorId, reason) {
+  const req = state.changeRequests.find((c) => c.id === id);
+  if (!req) return { ok: false, error: "Change request not found." };
+  if (req.status !== "pending") return { ok: false, error: "Request already processed." };
+  req.status = "denied";
+  req.reviewedAt = new Date().toISOString();
+  req.reviewedBy = doctorId;
+  req.denyReason = reason || "Clinician could not approve this change.";
+  persist();
+  return { ok: true, changeRequest: req };
 }
 
 function doctorQueue(doctorId) {
@@ -474,10 +578,14 @@ function doctorQueue(doctorId) {
   return appointments.map((apt) => {
     const patient = state.patients.find((p) => p.id === apt.patientId);
     const prescriptions = state.prescriptions.filter((r) => r.patientId === apt.patientId);
+    const changeRequests = state.changeRequests.filter(
+      (c) => c.patientId === apt.patientId && c.status === "pending"
+    );
     return {
       appointment: apt,
       patient: sanitizePatient(patient),
       prescriptions,
+      changeRequests,
     };
   });
 }
@@ -561,6 +669,7 @@ function upsertDemoPatient(profile, doctor) {
   const followUpIso = followUp.toISOString().slice(0, 10);
 
   for (const apt of profile.appointments || []) {
+    const isNew = apt.patientType === "new" || /initial/i.test(apt.type || "");
     state.appointments.push({
       id: uid("APT"),
       patientId: patient.id,
@@ -569,7 +678,8 @@ function upsertDemoPatient(profile, doctor) {
       format: "Phone consult",
       status: "confirmed",
       fee: CONSULT_FEE,
-      durationMinutes: APPOINTMENT_MINUTES,
+      patientType: isNew ? "new" : "existing",
+      durationMinutes: apt.durationMinutes || (isNew ? NEW_PATIENT_MINUTES : APPOINTMENT_MINUTES),
       telehealthStatus: "scheduled",
       ...apt,
     });
@@ -604,8 +714,8 @@ function ensureDemoPatients(doctors) {
       state: "NSW",
       support: "Sleep and evening routine support",
       appointments: [
-        { date: new Date().toISOString().slice(0, 10), time: "14:30", type: "Follow-up consult", telehealthStatus: "scheduled" },
-        { date: followUpIsoFromNow(14), time: "10:00", type: "Interval check-in", telehealthStatus: "scheduled" },
+        { date: new Date().toISOString().slice(0, 10), time: "14:30", type: "Follow-up consult", patientType: "existing", telehealthStatus: "scheduled" },
+        { date: followUpIsoFromNow(14), time: "10:00", type: "Interval check-in", patientType: "existing", telehealthStatus: "scheduled" },
       ],
       prescriptions: [
         {
@@ -661,7 +771,7 @@ function ensureDemoPatients(doctors) {
       state: "VIC",
       support: "Daytime focus and routine",
       appointments: [
-        { date: new Date().toISOString().slice(0, 10), time: "10:15", type: "Initial consult", telehealthStatus: "scheduled" },
+        { date: new Date().toISOString().slice(0, 10), time: "10:15", type: "Initial consult", patientType: "new", telehealthStatus: "scheduled" },
       ],
       prescriptions: [
         {
@@ -693,6 +803,7 @@ function ensureDemoPatients(doctors) {
           type: "Follow-up consult",
           telehealthStatus: "completed",
           status: "completed",
+          patientType: "existing",
         },
       ],
       prescriptions: [
@@ -724,7 +835,7 @@ function ensureDemoPatients(doctors) {
       state: "WA",
       support: "Anxiety and sleep balance",
       appointments: [
-        { date: tomorrowIsoFromNow(), time: "11:00", type: "Initial consult", telehealthStatus: "scheduled" },
+        { date: tomorrowIsoFromNow(), time: "11:00", type: "Initial consult", patientType: "new", telehealthStatus: "scheduled" },
       ],
       prescriptions: [
         {
@@ -799,6 +910,7 @@ ensureDemoAccounts();
 module.exports = {
   CONSULT_FEE,
   APPOINTMENT_MINUTES,
+  NEW_PATIENT_MINUTES,
   login,
   clearToken,
   getSession,
@@ -817,6 +929,10 @@ module.exports = {
   adminCreatePatient,
   updatePatient,
   updateAppointment,
+  createAppointment,
+  requestMedicationChange,
+  approveChangeRequest,
+  denyChangeRequest,
   doctorQueue,
   getBookingSlots,
   getDoctorAvailability,

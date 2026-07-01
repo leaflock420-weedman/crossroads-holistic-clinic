@@ -24,6 +24,16 @@ let selectedId = null;
 let activeAppointmentId = null;
 let searchQuery = "";
 
+function patientTypeInfo(appointment) {
+  const isNew = appointment?.patientType === "new" || /initial/i.test(appointment?.type || "");
+  return {
+    isNew,
+    label: isNew ? "New patient" : "Returning",
+    minutes: appointment?.durationMinutes || (isNew ? 30 : 15),
+    tagClass: isNew ? "crm-tag--new" : "crm-tag--returning",
+  };
+}
+
 const STAGES = {
   "up-next": { label: "Up next", match: (item) => item.appointment.telehealthStatus === "scheduled" },
   "on-call": { label: "On call", match: (item) => item.appointment.telehealthStatus === "in_progress" },
@@ -88,10 +98,12 @@ function renderMetrics() {
 }
 
 function cardHtml(item) {
-  const { appointment: a, patient, prescriptions } = item;
+  const { appointment: a, patient, prescriptions, changeRequests = [] } = item;
   const stage = stageFor(item);
   const pendingRx = prescriptions.some((rx) => rx.status === "pending_review");
   const reorder = prescriptions.some((rx) => rx.status === "reorder_requested");
+  const pendingDispense = prescriptions.some((rx) => rx.status === "pending_dispense");
+  const pt = patientTypeInfo(a);
   const selected = selectedId === patient?.id;
 
   return `
@@ -100,14 +112,17 @@ function cardHtml(item) {
         <div class="crm-avatar">${(patient?.name || "?").charAt(0)}</div>
         <div>
           <h3>${patient?.name || "Patient"}</h3>
-          <p class="crm-card__time">${a.date} · ${a.time}</p>
+          <p class="crm-card__time">${a.date} · ${a.time} · ${pt.minutes} min</p>
         </div>
       </div>
       <p class="crm-card__phone">${patient?.phone || "No phone on file"}</p>
       <div class="crm-card__tags">
+        <span class="crm-tag ${pt.tagClass}">${pt.label}</span>
         <span class="status-pill ${stage === "on-call" ? "ready" : "waiting"}">${a.telehealthStatus || "scheduled"}</span>
         ${pendingRx ? '<span class="crm-tag">Script review</span>' : ""}
+        ${pendingDispense ? '<span class="crm-tag">Awaiting dispense</span>' : ""}
         ${reorder ? '<span class="crm-tag crm-tag--alert">Reorder</span>' : ""}
+        ${changeRequests.length ? '<span class="crm-tag crm-tag--alert">Change request</span>' : ""}
       </div>
       <div class="crm-card__actions">
         ${
@@ -182,18 +197,87 @@ async function openDetail(patientId, appointmentId, opts = {}) {
 
   document.querySelector("[data-detail-name]").textContent = data.patient.name;
   document.querySelector("[data-detail-meta]").textContent = `${data.patient.email} · ${data.patient.phone || "—"} · ${data.patient.state}`;
+  const pt = patientTypeInfo(apt);
   document.querySelector("[data-detail-stage]").textContent = apt
-    ? `${apt.date} ${apt.time} · ${apt.telehealthStatus || "scheduled"}`
+    ? `${pt.label} · ${pt.minutes} min · ${apt.date} ${apt.time} · ${apt.telehealthStatus || "scheduled"}`
     : "Patient record";
 
   document.querySelector("[data-detail-scripts]").innerHTML = data.prescriptions.length
     ? data.prescriptions
         .map(
           (r) =>
-            `<li><strong>${r.name}</strong> — ${r.status} (${r.repeats}/${r.repeatsTotal} repeats)</li>`
+            `<li><button type="button" class="crm-script-pick" data-pick-rx="${r.id}"><strong>${r.name}</strong> — ${r.status} (${r.repeats}/${r.repeatsTotal})</button></li>`
         )
         .join("")
     : "<li>No scripts yet</li>";
+
+  document.querySelectorAll("[data-pick-rx]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const rx = data.prescriptions.find((r) => r.id === btn.dataset.pickRx);
+      if (!rx) return;
+      loadScriptForm(rx, patientId, appointmentId);
+    });
+  });
+
+  const changes = data.changeRequests?.filter((c) => c.status === "pending") || [];
+  const changeSection = document.querySelector("[data-change-requests-section]");
+  const changeEl = document.querySelector("[data-change-requests]");
+  if (changes.length) {
+    changeSection.hidden = false;
+    changeEl.innerHTML = changes
+      .map(
+        (c) => `
+      <article class="queue-card">
+        <div>
+          <strong>${c.requestedProduct || "Alternative medication"}</strong>
+          <p>${c.currentName} → ${c.requestedForm}</p>
+          <p class="queue-phone">${c.reason} · ${c.notes || ""}</p>
+        </div>
+        <div>
+          <button class="button primary" type="button" data-approve-change="${c.id}">Approve</button>
+          <button class="button ghost" type="button" data-deny-change="${c.id}">Decline</button>
+        </div>
+      </article>`
+      )
+      .join("");
+    changeEl.querySelectorAll("[data-approve-change]").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const req = changes.find((c) => c.id === btn.dataset.approveChange);
+        await api(`/api/doctor/change-requests/${req.id}/approve`, {
+          method: "POST",
+          body: JSON.stringify({
+            name: req.requestedProduct || undefined,
+            form: req.requestedForm,
+          }),
+        });
+        await loadQueue();
+        await openDetail(patientId, appointmentId, { silent: true });
+        alert("Change approved — sent to admin dispense queue.");
+      });
+    });
+    changeEl.querySelectorAll("[data-deny-change]").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const reason = prompt("Optional note for patient:");
+        await api(`/api/doctor/change-requests/${btn.dataset.denyChange}/deny`, {
+          method: "POST",
+          body: JSON.stringify({ reason: reason || "" }),
+        });
+        await loadQueue();
+        await openDetail(patientId, appointmentId, { silent: true });
+      });
+    });
+  } else {
+    changeSection.hidden = true;
+    changeEl.innerHTML = "";
+  }
+
+  const scheduleForm = document.querySelector("[data-schedule-form]");
+  if (scheduleForm) {
+    scheduleForm.patientId.value = patientId;
+    if (apt?.date) scheduleForm.date.value = apt.date;
+    if (apt?.time) scheduleForm.time.value = apt.time;
+    scheduleForm.patientType.value = pt.isNew ? "new" : "existing";
+  }
 
   const stage = item ? stageFor(item) : "up-next";
   document.querySelector("[data-detail-actions]").innerHTML = `
@@ -212,26 +296,29 @@ async function openDetail(patientId, appointmentId, opts = {}) {
   document.querySelector("[data-detail-call]")?.addEventListener("click", () => startCall(apt.id));
   document.querySelector("[data-detail-complete]")?.addEventListener("click", () => completeCall(apt.id));
 
-  const rx = data.prescriptions[0];
+  const editable = data.prescriptions.find((r) => r.status !== "active") || data.prescriptions[0];
+  if (editable) loadScriptForm(editable, patientId, appointmentId);
+  else showNewScript(patientId, appointmentId);
+
+  newScriptBtn.hidden = false;
+  newScriptBtn.onclick = () => showNewScript(patientId, appointmentId);
+
+  if (!opts.silent) renderBoard();
+}
+
+function loadScriptForm(rx, patientId, appointmentId) {
+  scriptForm.hidden = false;
+  scriptForm.prescriptionId.value = rx?.id || "";
+  scriptForm.patientId.value = patientId;
+  scriptForm.appointmentId.value = appointmentId || "";
   if (rx) {
-    scriptForm.hidden = false;
-    newScriptBtn.hidden = true;
-    scriptForm.prescriptionId.value = rx.id;
-    scriptForm.patientId.value = patientId;
-    scriptForm.appointmentId.value = appointmentId || "";
     scriptForm.name.value = rx.name;
     scriptForm.form.value = rx.form || "";
     scriptForm.repeats.value = rx.repeats;
     scriptForm.intervalDays.value = rx.intervalDays || 28;
-    scriptForm.status.value = rx.status;
     scriptForm.notes.value = rx.notes || "";
-  } else {
-    scriptForm.hidden = true;
-    newScriptBtn.hidden = false;
-    newScriptBtn.onclick = () => showNewScript(patientId, appointmentId);
   }
-
-  if (!opts.silent) renderBoard();
+  scriptForm.status.value = "pending_dispense";
 }
 
 function closeDetail() {
@@ -300,7 +387,7 @@ scriptForm?.addEventListener("submit", async (e) => {
     repeats: Number(fd.get("repeats")),
     repeatsTotal: Number(fd.get("repeats")),
     intervalDays: Number(fd.get("intervalDays")),
-    status: fd.get("status"),
+    status: "pending_dispense",
     notes: fd.get("notes"),
   };
 
@@ -371,6 +458,31 @@ document.querySelectorAll("[data-show-view]").forEach((btn) => {
     if (btn.dataset.showView === "pipeline") loadQueue();
     showDoctorView(btn.dataset.showView);
   });
+});
+
+document.querySelector("[data-schedule-form]")?.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  const patientType = fd.get("patientType");
+  const item = queue.find((q) => q.patient?.id === fd.get("patientId"));
+  const aptId = item?.appointment?.id;
+  const body = {
+    date: fd.get("date"),
+    time: fd.get("time"),
+    patientType,
+    durationMinutes: patientType === "new" ? 30 : 15,
+    type: patientType === "new" ? "Initial consult" : "Follow-up consult",
+  };
+  if (aptId) {
+    await api(`/api/doctor/appointments/${aptId}`, { method: "PUT", body: JSON.stringify(body) });
+  } else {
+    await api("/api/doctor/appointments", {
+      method: "POST",
+      body: JSON.stringify({ patientId: fd.get("patientId"), ...body }),
+    });
+  }
+  await loadQueue();
+  alert("Call time saved.");
 });
 
 availabilityDate?.addEventListener("change", loadAvailability);

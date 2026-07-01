@@ -1,6 +1,6 @@
-import { generateTimeSlots, APPOINTMENT_MINUTES } from "./data.js";
+import { generateTimeSlots, APPOINTMENT_MINUTES, NEW_PATIENT_MINUTES } from "./data.js";
 
-const DEMO_STATE_KEY = "crossroads-demo-state-v3";
+const DEMO_STATE_KEY = "crossroads-demo-state-v4";
 
 const DEMO_ACCOUNTS = {
   "demo@crossroads.clinic": { password: "demo1234", role: "patient" },
@@ -151,6 +151,7 @@ function buildInitialState() {
         format: "Phone consult",
         status: "confirmed",
         type: "Follow-up consult",
+        patientType: "existing",
         fee: 49,
         durationMinutes: APPOINTMENT_MINUTES,
         telehealthStatus: "scheduled",
@@ -165,6 +166,7 @@ function buildInitialState() {
         format: "Phone consult",
         status: "confirmed",
         type: "Interval check-in",
+        patientType: "existing",
         fee: 49,
         durationMinutes: APPOINTMENT_MINUTES,
         telehealthStatus: "scheduled",
@@ -179,8 +181,9 @@ function buildInitialState() {
         format: "Phone consult",
         status: "confirmed",
         type: "Initial consult",
+        patientType: "new",
         fee: 49,
-        durationMinutes: APPOINTMENT_MINUTES,
+        durationMinutes: NEW_PATIENT_MINUTES,
         telehealthStatus: "scheduled",
       },
       {
@@ -193,6 +196,7 @@ function buildInitialState() {
         format: "Phone consult",
         status: "completed",
         type: "Follow-up consult",
+        patientType: "existing",
         fee: 49,
         durationMinutes: APPOINTMENT_MINUTES,
         telehealthStatus: "completed",
@@ -207,8 +211,9 @@ function buildInitialState() {
         format: "Phone consult",
         status: "confirmed",
         type: "Initial consult",
+        patientType: "new",
         fee: 49,
-        durationMinutes: APPOINTMENT_MINUTES,
+        durationMinutes: NEW_PATIENT_MINUTES,
         telehealthStatus: "scheduled",
       },
     ],
@@ -318,6 +323,7 @@ function buildInitialState() {
       },
     ],
     availability: [],
+    changeRequests: [],
     sessions: {},
   };
   seedAvailability(state, doctor.id);
@@ -358,6 +364,7 @@ function patientBundle(state, patientId) {
     appointments: state.appointments.filter((a) => a.patientId === patientId),
     prescriptions: state.prescriptions.filter((r) => r.patientId === patientId),
     orders: state.orders.filter((o) => o.patientId === patientId),
+    changeRequests: state.changeRequests.filter((c) => c.patientId === patientId),
   };
 }
 
@@ -403,6 +410,7 @@ function doctorQueue(state, doctorId) {
     appointment: apt,
     patient: state.patients[apt.patientId],
     prescriptions: state.prescriptions.filter((r) => r.patientId === apt.patientId),
+    changeRequests: state.changeRequests.filter((c) => c.patientId === apt.patientId && c.status === "pending"),
   }));
 }
 
@@ -550,6 +558,32 @@ export function demoApi(path, options = {}, token) {
     return { ...data, mode: "demo" };
   }
 
+  if (pathname.startsWith("/api/patient/prescriptions/") && pathname.endsWith("/change-request") && method === "POST") {
+    const id = pathname.split("/")[4];
+    const rx = state.prescriptions.find((r) => r.id === id && r.patientId === session.user.id);
+    if (!rx) throw new Error("Prescription not found");
+    if (!["active", "reorder_requested"].includes(rx.status)) throw new Error("Only active scripts can be changed.");
+    if (state.changeRequests.some((c) => c.prescriptionId === id && c.status === "pending")) {
+      throw new Error("You already have a change request awaiting review.");
+    }
+    const req = {
+      id: uid("CHG"),
+      patientId: session.user.id,
+      prescriptionId: id,
+      currentName: rx.name,
+      currentForm: rx.form,
+      requestedForm: body.requestedForm || "",
+      requestedProduct: body.requestedProduct || "",
+      reason: body.reason || "out_of_stock",
+      notes: body.notes || "",
+      status: "pending",
+      createdAt: new Date().toISOString(),
+    };
+    state.changeRequests.push(req);
+    saveDemoState(state);
+    return { ok: true, changeRequest: req, mode: "demo" };
+  }
+
   if (pathname.startsWith("/api/patient/reorder/") && method === "POST") {
     const id = pathname.split("/").pop();
     const rx = state.prescriptions.find((r) => r.id === id);
@@ -618,9 +652,11 @@ export function demoApi(path, options = {}, token) {
     const rx = state.prescriptions.find((r) => r.id === id);
     if (!rx) throw new Error("Prescription not found");
     const patch = { ...body };
-    if (session.role === "doctor" && patch.status === "active") patch.status = "pending_dispense";
+    if (session.role === "doctor") {
+      patch.status = "pending_dispense";
+      patch.submittedAt = new Date().toISOString();
+    }
     Object.assign(rx, patch, { prescribedBy: session.user.id });
-    if (patch.status === "pending_dispense") rx.submittedAt = new Date().toISOString();
     saveDemoState(state);
     return { ok: true, prescription: rx, mode: "demo" };
   }
@@ -672,6 +708,95 @@ export function demoApi(path, options = {}, token) {
     return { ok: true, appointment: apt, mode: "demo" };
   }
 
+  if (pathname.startsWith("/api/doctor/change-requests/") && pathname.endsWith("/approve") && method === "POST") {
+    const id = pathname.split("/")[4];
+    const req = state.changeRequests.find((c) => c.id === id);
+    if (!req) throw new Error("Change request not found");
+    const rx = state.prescriptions.find((r) => r.id === req.prescriptionId);
+    Object.assign(rx, {
+      name: body.name || req.requestedProduct || rx.name,
+      form: body.form || req.requestedForm || rx.form,
+      status: "pending_dispense",
+      submittedAt: new Date().toISOString(),
+      prescribedBy: session.user.id,
+    });
+    req.status = "approved";
+    req.reviewedAt = new Date().toISOString();
+    saveDemoState(state);
+    return { ok: true, changeRequest: req, prescription: rx, mode: "demo" };
+  }
+
+  if (pathname.startsWith("/api/doctor/change-requests/") && pathname.endsWith("/deny") && method === "POST") {
+    const id = pathname.split("/")[4];
+    const req = state.changeRequests.find((c) => c.id === id);
+    if (!req) throw new Error("Change request not found");
+    req.status = "denied";
+    req.reviewedAt = new Date().toISOString();
+    req.denyReason = body.reason || "";
+    saveDemoState(state);
+    return { ok: true, changeRequest: req, mode: "demo" };
+  }
+
+  if (pathname === "/api/doctor/appointments" && method === "POST") {
+    const patient = state.patients[body.patientId];
+    if (!patient) throw new Error("Patient not found");
+    const doctor = state.users[body.doctorId || patient.assignedDoctorId];
+    const isNew = body.patientType === "new";
+    state.appointments.push({
+      id: uid("APT"),
+      patientId: body.patientId,
+      date: body.date,
+      time: body.time,
+      doctorId: doctor?.id,
+      clinician: doctor?.name || "Clinician",
+      patientType: isNew ? "new" : "existing",
+      durationMinutes: body.durationMinutes || (isNew ? NEW_PATIENT_MINUTES : APPOINTMENT_MINUTES),
+      type: body.type || (isNew ? "Initial consult" : "Follow-up consult"),
+      format: "Phone consult",
+      status: "confirmed",
+      fee: 49,
+      telehealthStatus: "scheduled",
+    });
+    saveDemoState(state);
+    return { ok: true, mode: "demo" };
+  }
+
+  if (pathname.startsWith("/api/doctor/appointments/") && method === "PUT") {
+    const id = pathname.split("/").pop();
+    const apt = state.appointments.find((a) => a.id === id);
+    if (!apt) throw new Error("Appointment not found");
+    Object.assign(apt, body);
+    if (body.patientType === "new") apt.durationMinutes = NEW_PATIENT_MINUTES;
+    if (body.patientType === "existing") apt.durationMinutes = APPOINTMENT_MINUTES;
+    saveDemoState(state);
+    return { ok: true, appointment: apt, mode: "demo" };
+  }
+
+  if (pathname === "/api/admin/appointments" && method === "POST") {
+    const patient = state.patients[body.patientId];
+    if (!patient) throw new Error("Patient not found");
+    const doctor = state.users[body.doctorId];
+    const isNew = body.patientType === "new";
+    state.appointments.push({
+      id: uid("APT"),
+      patientId: body.patientId,
+      date: body.date,
+      time: body.time,
+      doctorId: doctor?.id,
+      clinician: doctor?.name || "Clinician",
+      patientType: isNew ? "new" : "existing",
+      durationMinutes: body.durationMinutes || (isNew ? NEW_PATIENT_MINUTES : APPOINTMENT_MINUTES),
+      type: body.type || (isNew ? "Initial consult" : "Follow-up consult"),
+      format: "Phone consult",
+      status: "confirmed",
+      fee: 49,
+      telehealthStatus: "scheduled",
+    });
+    if (doctor) patient.assignedDoctorId = doctor.id;
+    saveDemoState(state);
+    return { ok: true, mode: "demo" };
+  }
+
   if (pathname === "/api/admin/overview" && session.role === "admin") {
     return {
       stats: {
@@ -680,8 +805,10 @@ export function demoApi(path, options = {}, token) {
         prescriptions: state.prescriptions.length,
         reorderRequests: state.prescriptions.filter((r) => r.status === "reorder_requested").length,
         pendingDispense: state.prescriptions.filter((r) => r.status === "pending_dispense").length,
+        changeRequests: state.changeRequests.filter((c) => c.status === "pending").length,
         orders: state.orders.length,
       },
+      changeRequests: state.changeRequests.filter((c) => c.status === "pending"),
       patients: Object.values(state.patients),
       appointments: state.appointments,
       prescriptions: state.prescriptions,
@@ -728,6 +855,15 @@ export function demoApi(path, options = {}, token) {
     });
     saveDemoState(state);
     return { ok: true, patient, password, mode: "demo" };
+  }
+
+  if (pathname.startsWith("/api/admin/appointments/") && method === "PUT") {
+    const id = pathname.split("/").pop();
+    const apt = state.appointments.find((a) => a.id === id);
+    if (!apt) throw new Error("Appointment not found");
+    Object.assign(apt, body);
+    saveDemoState(state);
+    return { ok: true, appointment: apt, mode: "demo" };
   }
 
   if (pathname.startsWith("/api/admin/patients/") && method === "PUT") {

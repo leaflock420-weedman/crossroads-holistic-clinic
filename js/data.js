@@ -50,6 +50,15 @@ export const PRODUCTS = [
 ];
 
 export const APPOINTMENT_MINUTES = 15;
+export const NEW_PATIENT_MINUTES = 30;
+
+export const MEDICATION_FORMS = [
+  { id: "flower", label: "Dried flower" },
+  { id: "oil", label: "Oral oil" },
+  { id: "vape", label: "Vape cartridge" },
+  { id: "capsule", label: "Capsules" },
+  { id: "other", label: "Other / discuss with clinician" },
+];
 
 export function generateTimeSlots(startHour = 9, endHour = 17, stepMinutes = APPOINTMENT_MINUTES) {
   const slots = [];

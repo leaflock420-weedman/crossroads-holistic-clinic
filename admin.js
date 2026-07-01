@@ -166,23 +166,85 @@ function renderPatients() {
 }
 
 function renderAppointments() {
+  const patients = overview.patients
+    .map((p) => `<option value="${p.id}">${p.name}</option>`)
+    .join("");
   document.querySelector("[data-appointments-table]").innerHTML = `
+    <div class="admin-panel">
+      <h3>Schedule doctor call</h3>
+      <form class="flow-form admin-form-grid" data-schedule-apt-form>
+        <label>Patient <select name="patientId" required><option value="">Select patient</option>${patients}</select></label>
+        <label>Doctor <select name="doctorId" data-doctor-select required>${doctorOptions()}</select></label>
+        <label>Date <input type="date" name="date" required /></label>
+        <label>Time <input type="time" name="time" required step="900" /></label>
+        <label>Visit type
+          <select name="patientType">
+            <option value="existing">Returning · 15 min</option>
+            <option value="new">New patient · 30 min</option>
+          </select>
+        </label>
+        <button class="button primary" type="submit">Schedule call</button>
+      </form>
+    </div>
     <table class="admin-table">
       <thead><tr><th>Patient</th><th>When</th><th>Doctor</th><th>Duration</th><th>Status</th><th></th></tr></thead>
       <tbody>
-        ${overview.appointments.map((a) => `
-          <tr>
+        ${overview.appointments.map((a) => {
+          const typeLabel = a.patientType === "new" || /initial/i.test(a.type || "") ? "New" : "Returning";
+          return `
+          <tr data-apt-row="${a.id}">
             <td>${patientName(a.patientId)}</td>
-            <td>${a.date} ${a.time}</td>
+            <td>
+              <input class="admin-inline-input" type="date" value="${a.date}" data-apt-date="${a.id}" />
+              <input class="admin-inline-input" type="time" value="${a.time}" data-apt-time="${a.id}" step="900" />
+            </td>
             <td>${a.clinician || doctorName(a.doctorId)}</td>
-            <td>${a.durationMinutes || 15} min</td>
+            <td>${a.durationMinutes || 15} min · ${typeLabel}</td>
             <td>${a.telehealthStatus || a.status}</td>
-            <td><button class="button primary" type="button" data-start-apt="${a.id}">Start call</button></td>
-          </tr>
-        `).join("")}
+            <td>
+              <button class="button ghost" type="button" data-save-apt="${a.id}">Save</button>
+              <button class="button primary" type="button" data-start-apt="${a.id}">Start call</button>
+            </td>
+          </tr>`;
+        }).join("")}
       </tbody>
     </table>
   `;
+
+  document.querySelectorAll("[data-save-apt]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const id = btn.dataset.saveApt;
+      await api(`/api/admin/appointments/${id}`, {
+        method: "PUT",
+        body: JSON.stringify({
+          date: document.querySelector(`[data-apt-date="${id}"]`)?.value,
+          time: document.querySelector(`[data-apt-time="${id}"]`)?.value,
+        }),
+      });
+      await loadOverview();
+    });
+  });
+
+  document.querySelector("[data-schedule-apt-form]")?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const patientType = fd.get("patientType");
+    await api("/api/admin/appointments", {
+      method: "POST",
+      body: JSON.stringify({
+        patientId: fd.get("patientId"),
+        doctorId: fd.get("doctorId"),
+        date: fd.get("date"),
+        time: fd.get("time"),
+        patientType,
+        durationMinutes: patientType === "new" ? 30 : 15,
+        type: patientType === "new" ? "Initial consult" : "Follow-up consult",
+      }),
+    });
+    e.target.reset();
+    await loadOverview();
+    setView("appointments");
+  });
 
   document.querySelectorAll("[data-start-apt]").forEach((btn) => {
     btn.addEventListener("click", async () => {

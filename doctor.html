@@ -104,6 +104,29 @@
 
               <div class="crm-detail__actions" data-detail-actions></div>
 
+              <section class="crm-detail__section" data-change-requests-section hidden>
+                <h3>Medication change requests</h3>
+                <div data-change-requests></div>
+              </section>
+
+              <section class="crm-detail__section">
+                <h3>Schedule callback</h3>
+                <form class="flow-form crm-schedule-form" data-schedule-form>
+                  <input type="hidden" name="patientId" />
+                  <div class="field-grid">
+                    <label>Date <input type="date" name="date" required /></label>
+                    <label>Time <input type="time" name="time" required step="900" /></label>
+                  </div>
+                  <label>Visit type
+                    <select name="patientType">
+                      <option value="existing">Returning · 15 min</option>
+                      <option value="new">New patient · 30 min</option>
+                    </select>
+                  </label>
+                  <button class="button ghost full" type="submit">Save call time</button>
+                </form>
+              </section>
+
               <section class="crm-detail__section">
                 <h3>Scripts on file</h3>
                 <ul class="crm-script-list" data-detail-scripts></ul>

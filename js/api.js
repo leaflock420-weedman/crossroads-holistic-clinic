@@ -41,7 +41,7 @@ async function detectApiMode() {
       return apiMode;
     }
     const data = JSON.parse(trimmed);
-    if (data?.ok && data?.service === "crossroads-clinic") {
+    if (data?.ok && data?.service === "crossroads-clinic" && data?.mode !== "demo") {
       apiMode = "live";
       return apiMode;
     }
