@@ -1,4 +1,6 @@
-import { api, setToken, getToken } from "./js/api.js";
+import { api, setToken, getToken, configureAuth, clearOtherPortalTokens } from "./js/api.js";
+
+configureAuth("admin");
 
 const loginView = document.querySelector("[data-login-view]");
 const appView = document.querySelector("[data-app-view]");
@@ -178,13 +180,16 @@ function renderAppointments() {
 
 loginForm?.addEventListener("submit", async (e) => {
   e.preventDefault();
+  loginError.hidden = true;
   const fd = new FormData(e.target);
   try {
+    clearOtherPortalTokens("admin");
     const res = await api("/api/auth/login", {
       method: "POST",
       body: JSON.stringify({ email: fd.get("email"), password: fd.get("password") }),
     });
-    if (res.role !== "admin") throw new Error("Admin access only.");
+    if (!res.ok) throw new Error(res.error || "Login failed.");
+    if (res.role !== "admin") throw new Error("This account is not an admin. Use the doctor or patient portal instead.");
     setToken(res.token);
     document.querySelector("[data-sidebar-name]").textContent = res.user.name;
     showApp();
@@ -203,7 +208,12 @@ document.querySelectorAll("[data-admin-nav] button").forEach((btn) => {
 if (getToken()) {
   api("/api/auth/me")
     .then(async (res) => {
-      if (res.role !== "admin") throw new Error();
+      if (res.role !== "admin") {
+        setToken(null);
+        loginError.textContent = "Signed in elsewhere as a different role. Please sign in as admin.";
+        loginError.hidden = false;
+        throw new Error("wrong role");
+      }
       document.querySelector("[data-sidebar-name]").textContent = res.user.name;
       showApp();
       await loadOverview();

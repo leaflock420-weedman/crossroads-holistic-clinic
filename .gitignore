@@ -4,3 +4,5 @@ dist
 .env
 .env.local
 data/clinic-live.json
+.chrome-deploy-profile/
+render-*.png

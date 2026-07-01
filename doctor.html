@@ -8,14 +8,14 @@
     <link rel="stylesheet" href="/styles.css" />
     <link rel="stylesheet" href="/portal.css" />
   </head>
-  <body class="portal-page">
+  <body class="portal-page doctor-crm-page">
     <div class="portal-login" data-login-view>
       <div class="portal-login__card">
         <a class="brand portal-login__brand" href="/">
           <img class="brand-mark crossroads-logo" src="/crossroads-mark-transparent.png" alt="" width="48" height="48" />
         </a>
         <h1>Doctor portal</h1>
-        <p class="flow-lead">Today's consults, update scripts, and start phone telehealth with patients.</p>
+        <p class="flow-lead">Pipeline view for today's consults — call, update scripts, and move patients through.</p>
         <form class="flow-form" data-login-form>
           <label>Email <input type="email" name="email" required placeholder="dr.patel@crossroads.clinic" /></label>
           <label>Password <input type="password" name="password" required /></label>
@@ -29,61 +29,104 @@
       </div>
     </div>
 
-    <div class="portal-app staff-app" data-app-view hidden>
-      <aside class="portal-sidebar">
-        <a class="brand portal-sidebar__brand" href="/"><span>Crossroads · Doctor</span></a>
-        <p class="portal-sidebar__user" data-sidebar-name></p>
-        <nav class="portal-nav" data-staff-nav>
-          <button type="button" class="active" data-view="queue">Today's queue</button>
-          <button type="button" data-view="patient">Patient &amp; scripts</button>
+    <div class="crm-app" data-app-view hidden>
+      <aside class="crm-sidebar">
+        <a class="brand crm-sidebar__brand" href="/"><span>Crossroads</span></a>
+        <p class="crm-sidebar__user" data-sidebar-name></p>
+        <nav class="crm-sidebar__nav">
+          <button type="button" class="active" data-refresh-queue>Today's pipeline</button>
+          <a href="/admin.html">Admin control</a>
         </nav>
         <button type="button" class="portal-logout" data-logout>Sign out</button>
       </aside>
 
-      <div class="portal-main">
-        <header class="portal-top">
-          <div>
+      <main class="crm-main">
+        <header class="crm-header">
+          <div class="crm-header__intro">
             <p class="eyebrow">Clinician workspace</p>
-            <h1 data-page-title>Today's queue</h1>
+            <h1>Consult pipeline</h1>
           </div>
+          <div class="crm-metrics" data-crm-metrics></div>
+          <label class="crm-search">
+            <span class="sr-only">Search patients</span>
+            <input type="search" placeholder="Search name or phone…" data-search />
+          </label>
         </header>
 
-        <section class="portal-view is-active" data-staff-view="queue">
-          <p class="view-intro">Select a consult to start the phone call or update scripts after the session.</p>
-          <div class="queue-list" data-queue-list></div>
-        </section>
-
-        <section class="portal-view" data-staff-view="patient" hidden>
-          <div class="staff-split">
-            <div class="staff-panel" data-patient-panel>
-              <p class="empty-state">Select a patient from the queue.</p>
-            </div>
-            <div class="staff-panel">
-              <h3>Update script</h3>
-              <form class="flow-form" data-script-form hidden>
-                <input type="hidden" name="prescriptionId" />
-                <input type="hidden" name="patientId" />
-                <label>Medication <input name="name" required /></label>
-                <label>Form <input name="form" placeholder="e.g. Dried herb · 10g" /></label>
-                <div class="field-grid">
-                  <label>Repeats left <input name="repeats" type="number" min="0" max="10" /></label>
-                  <label>Interval (days) <input name="intervalDays" type="number" min="7" max="90" /></label>
-                </div>
-                <label>Status
-                  <select name="status">
-                    <option value="pending_review">Pending review</option>
-                    <option value="active">Active</option>
-                    <option value="reorder_requested">Reorder requested</option>
-                  </select>
-                </label>
-                <label>Notes <textarea name="notes" rows="3"></textarea></label>
-                <button class="button primary full" type="submit">Save script</button>
-              </form>
-              <button class="button ghost full" type="button" data-new-script hidden>Add new script</button>
-            </div>
+        <div class="crm-layout">
+          <div class="crm-board" data-board>
+            <section class="crm-column" data-column="up-next">
+              <header class="crm-column__head">
+                <h2>Up next</h2>
+                <span class="crm-count" data-count="up-next">0</span>
+              </header>
+              <div class="crm-cards" data-cards="up-next"></div>
+            </section>
+            <section class="crm-column" data-column="on-call">
+              <header class="crm-column__head">
+                <h2>On call</h2>
+                <span class="crm-count" data-count="on-call">0</span>
+              </header>
+              <div class="crm-cards" data-cards="on-call"></div>
+            </section>
+            <section class="crm-column" data-column="wrap-up">
+              <header class="crm-column__head">
+                <h2>Wrap up</h2>
+                <span class="crm-count" data-count="wrap-up">0</span>
+              </header>
+              <div class="crm-cards" data-cards="wrap-up"></div>
+            </section>
           </div>
-        </section>
-      </div>
+
+          <aside class="crm-detail" data-detail-panel>
+            <div class="crm-detail__empty" data-detail-empty>
+              <p>Select a patient card to open their profile, scripts, and quick actions.</p>
+            </div>
+            <div class="crm-detail__body" data-detail-body hidden>
+              <header class="crm-detail__head">
+                <div>
+                  <p class="eyebrow" data-detail-stage></p>
+                  <h2 data-detail-name></h2>
+                  <p class="crm-detail__meta" data-detail-meta></p>
+                </div>
+                <button class="crm-detail__close" type="button" data-close-detail aria-label="Close panel">×</button>
+              </header>
+
+              <div class="crm-detail__actions" data-detail-actions></div>
+
+              <section class="crm-detail__section">
+                <h3>Scripts on file</h3>
+                <ul class="crm-script-list" data-detail-scripts></ul>
+              </section>
+
+              <section class="crm-detail__section">
+                <h3>Update script</h3>
+                <form class="flow-form crm-script-form" data-script-form hidden>
+                  <input type="hidden" name="prescriptionId" />
+                  <input type="hidden" name="patientId" />
+                  <input type="hidden" name="appointmentId" />
+                  <label>Medication <input name="name" required /></label>
+                  <label>Form <input name="form" placeholder="e.g. Dried herb · 10g" /></label>
+                  <div class="field-grid">
+                    <label>Repeats left <input name="repeats" type="number" min="0" max="10" /></label>
+                    <label>Interval (days) <input name="intervalDays" type="number" min="7" max="90" /></label>
+                  </div>
+                  <label>Status
+                    <select name="status">
+                      <option value="pending_review">Pending review</option>
+                      <option value="active">Active</option>
+                      <option value="reorder_requested">Reorder requested</option>
+                    </select>
+                  </label>
+                  <label>Notes <textarea name="notes" rows="3"></textarea></label>
+                  <button class="button primary full" type="submit">Save script</button>
+                </form>
+                <button class="button ghost full" type="button" data-new-script hidden>Add new script</button>
+              </section>
+            </div>
+          </aside>
+        </div>
+      </main>
     </div>
 
     <div class="call-banner" data-call-banner hidden>

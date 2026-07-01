@@ -1,11 +1,16 @@
-import { api, setToken, getToken } from "./js/api.js";
+import { api, setToken, getToken, configureAuth, clearOtherPortalTokens } from "./js/api.js";
+
+configureAuth("doctor");
 
 const loginView = document.querySelector("[data-login-view]");
 const appView = document.querySelector("[data-app-view]");
 const loginForm = document.querySelector("[data-login-form]");
 const loginError = document.querySelector("[data-login-error]");
-const queueList = document.querySelector("[data-queue-list]");
-const patientPanel = document.querySelector("[data-patient-panel]");
+const metricsEl = document.querySelector("[data-crm-metrics]");
+const searchInput = document.querySelector("[data-search]");
+const detailPanel = document.querySelector("[data-detail-panel]");
+const detailEmpty = document.querySelector("[data-detail-empty]");
+const detailBody = document.querySelector("[data-detail-body]");
 const scriptForm = document.querySelector("[data-script-form]");
 const newScriptBtn = document.querySelector("[data-new-script]");
 const callBanner = document.querySelector("[data-call-banner]");
@@ -14,8 +19,20 @@ const callLink = document.querySelector("[data-call-link]");
 const callDone = document.querySelector("[data-call-done]");
 
 let queue = [];
-let selected = null;
+let selectedId = null;
 let activeAppointmentId = null;
+let searchQuery = "";
+
+const STAGES = {
+  "up-next": { label: "Up next", match: (item) => item.appointment.telehealthStatus === "scheduled" },
+  "on-call": { label: "On call", match: (item) => item.appointment.telehealthStatus === "in_progress" },
+  "wrap-up": {
+    label: "Wrap up",
+    match: (item) =>
+      item.appointment.telehealthStatus === "completed" ||
+      item.prescriptions.some((rx) => rx.status === "pending_review" || rx.status === "reorder_requested"),
+  },
+};
 
 function showLogin() {
   setToken(null);
@@ -28,51 +45,210 @@ function showApp() {
   appView.hidden = false;
 }
 
-function setView(name) {
-  document.querySelectorAll("[data-staff-view]").forEach((v) => {
-    const on = v.dataset.staffView === name;
-    v.classList.toggle("is-active", on);
-    v.toggleAttribute("hidden", !on);
+function stageFor(item) {
+  if (item.appointment.telehealthStatus === "in_progress") return "on-call";
+  if (
+    item.appointment.telehealthStatus === "completed" ||
+    item.prescriptions.some((rx) => rx.status === "pending_review" || rx.status === "reorder_requested")
+  ) {
+    return "wrap-up";
+  }
+  return "up-next";
+}
+
+function filteredQueue() {
+  const q = searchQuery.trim().toLowerCase();
+  if (!q) return queue;
+  return queue.filter(({ patient, appointment }) => {
+    const hay = `${patient?.name || ""} ${patient?.phone || ""} ${appointment.time}`.toLowerCase();
+    return hay.includes(q);
   });
-  document.querySelectorAll("[data-staff-nav] button").forEach((b) => {
-    b.classList.toggle("active", b.dataset.view === name);
+}
+
+function renderMetrics() {
+  const items = filteredQueue();
+  const counts = { "up-next": 0, "on-call": 0, "wrap-up": 0 };
+  items.forEach((item) => {
+    counts[stageFor(item)] += 1;
+  });
+
+  metricsEl.innerHTML = `
+    <article class="crm-metric"><strong>${items.length}</strong><span>Total today</span></article>
+    <article class="crm-metric"><strong>${counts["on-call"]}</strong><span>On call</span></article>
+    <article class="crm-metric"><strong>${counts["wrap-up"]}</strong><span>Needs wrap-up</span></article>
+  `;
+
+  Object.keys(counts).forEach((key) => {
+    const el = document.querySelector(`[data-count="${key}"]`);
+    if (el) el.textContent = counts[key];
+  });
+}
+
+function cardHtml(item) {
+  const { appointment: a, patient, prescriptions } = item;
+  const stage = stageFor(item);
+  const pendingRx = prescriptions.some((rx) => rx.status === "pending_review");
+  const reorder = prescriptions.some((rx) => rx.status === "reorder_requested");
+  const selected = selectedId === patient?.id;
+
+  return `
+    <article class="crm-card ${selected ? "is-selected" : ""}" data-card data-patient-id="${patient?.id}" data-appointment-id="${a.id}" tabindex="0">
+      <div class="crm-card__top">
+        <div class="crm-avatar">${(patient?.name || "?").charAt(0)}</div>
+        <div>
+          <h3>${patient?.name || "Patient"}</h3>
+          <p class="crm-card__time">${a.date} · ${a.time}</p>
+        </div>
+      </div>
+      <p class="crm-card__phone">${patient?.phone || "No phone on file"}</p>
+      <div class="crm-card__tags">
+        <span class="status-pill ${stage === "on-call" ? "ready" : "waiting"}">${a.telehealthStatus || "scheduled"}</span>
+        ${pendingRx ? '<span class="crm-tag">Script review</span>' : ""}
+        ${reorder ? '<span class="crm-tag crm-tag--alert">Reorder</span>' : ""}
+      </div>
+      <div class="crm-card__actions">
+        ${
+          stage !== "on-call"
+            ? `<button class="button primary" type="button" data-start-call="${a.id}">Start call</button>`
+            : `<button class="button ghost" type="button" data-open-detail="${patient?.id}">Open</button>`
+        }
+      </div>
+    </article>
+  `;
+}
+
+function renderBoard() {
+  const items = filteredQueue();
+  renderMetrics();
+
+  Object.keys(STAGES).forEach((column) => {
+    const list = document.querySelector(`[data-cards="${column}"]`);
+    const columnItems = items.filter((item) => stageFor(item) === column);
+    list.innerHTML = columnItems.length
+      ? columnItems.map(cardHtml).join("")
+      : `<p class="crm-column__empty">No patients here</p>`;
+  });
+
+  document.querySelectorAll("[data-card]").forEach((card) => {
+    card.addEventListener("click", (e) => {
+      if (e.target.closest("button")) return;
+      openDetail(card.dataset.patientId, card.dataset.appointmentId);
+    });
+    card.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") openDetail(card.dataset.patientId, card.dataset.appointmentId);
+    });
+  });
+
+  document.querySelectorAll("[data-start-call]").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      startCall(btn.dataset.startCall);
+    });
+  });
+
+  document.querySelectorAll("[data-open-detail]").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const card = btn.closest("[data-card]");
+      openDetail(card.dataset.patientId, card.dataset.appointmentId);
+    });
   });
 }
 
 async function loadQueue() {
   const data = await api("/api/doctor/queue");
   queue = data.queue || [];
-  renderQueue();
+  renderBoard();
+  if (selectedId) {
+    const item = queue.find((q) => q.patient?.id === selectedId);
+    if (item) await openDetail(selectedId, item.appointment.id, { silent: true });
+    else closeDetail();
+  }
 }
 
-function renderQueue() {
-  if (!queue.length) {
-    queueList.innerHTML = `<p class="empty-state">No upcoming consults in queue.</p>`;
-    return;
+async function openDetail(patientId, appointmentId, opts = {}) {
+  if (!patientId) return;
+  selectedId = patientId;
+  detailPanel.classList.add("is-open");
+  detailEmpty.hidden = true;
+  detailBody.hidden = false;
+
+  const data = await api(`/api/doctor/patients/${patientId}`);
+  const item = queue.find((q) => q.patient?.id === patientId);
+  const apt = item?.appointment || data.appointments?.[0];
+
+  document.querySelector("[data-detail-name]").textContent = data.patient.name;
+  document.querySelector("[data-detail-meta]").textContent = `${data.patient.email} · ${data.patient.phone || "—"} · ${data.patient.state}`;
+  document.querySelector("[data-detail-stage]").textContent = apt
+    ? `${apt.date} ${apt.time} · ${apt.telehealthStatus || "scheduled"}`
+    : "Patient record";
+
+  document.querySelector("[data-detail-scripts]").innerHTML = data.prescriptions.length
+    ? data.prescriptions
+        .map(
+          (r) =>
+            `<li><strong>${r.name}</strong> — ${r.status} (${r.repeats}/${r.repeatsTotal} repeats)</li>`
+        )
+        .join("")
+    : "<li>No scripts yet</li>";
+
+  const stage = item ? stageFor(item) : "up-next";
+  document.querySelector("[data-detail-actions]").innerHTML = `
+    ${
+      stage !== "on-call"
+        ? `<button class="button primary" type="button" data-detail-call="${apt?.id || ""}">Start phone consult</button>`
+        : `<a class="button primary" href="tel:${(data.patient.phone || "").replace(/\D/g, "")}">Dial ${data.patient.phone || "patient"}</a>`
+    }
+    ${
+      apt?.telehealthStatus === "in_progress"
+        ? `<button class="button ghost" type="button" data-detail-complete="${apt.id}">Mark complete</button>`
+        : ""
+    }
+  `;
+
+  document.querySelector("[data-detail-call]")?.addEventListener("click", () => startCall(apt.id));
+  document.querySelector("[data-detail-complete]")?.addEventListener("click", () => completeCall(apt.id));
+
+  const rx = data.prescriptions[0];
+  if (rx) {
+    scriptForm.hidden = false;
+    newScriptBtn.hidden = true;
+    scriptForm.prescriptionId.value = rx.id;
+    scriptForm.patientId.value = patientId;
+    scriptForm.appointmentId.value = appointmentId || "";
+    scriptForm.name.value = rx.name;
+    scriptForm.form.value = rx.form || "";
+    scriptForm.repeats.value = rx.repeats;
+    scriptForm.intervalDays.value = rx.intervalDays || 28;
+    scriptForm.status.value = rx.status;
+    scriptForm.notes.value = rx.notes || "";
+  } else {
+    scriptForm.hidden = true;
+    newScriptBtn.hidden = false;
+    newScriptBtn.onclick = () => showNewScript(patientId, appointmentId);
   }
 
-  queueList.innerHTML = queue.map(({ appointment: a, patient }) => `
-    <article class="queue-card">
-      <div>
-        <p class="eyebrow">${a.type}</p>
-        <h3>${patient?.name || "Patient"}</h3>
-        <p>${a.date} at ${a.time} · ${a.format}</p>
-        <p class="queue-phone">${patient?.phone || "No phone on file"}</p>
-      </div>
-      <div class="queue-actions">
-        <span class="status-pill ${a.telehealthStatus === "in_progress" ? "ready" : "waiting"}">${a.telehealthStatus || "scheduled"}</span>
-        <button class="button primary" type="button" data-start-call="${a.id}" data-patient-id="${patient?.id}">Start phone consult</button>
-        <button class="button ghost" type="button" data-open-patient="${patient?.id}">Scripts</button>
-      </div>
-    </article>
-  `).join("");
+  if (!opts.silent) renderBoard();
+}
 
-  queueList.querySelectorAll("[data-start-call]").forEach((btn) => {
-    btn.addEventListener("click", () => startCall(btn.dataset.startCall));
-  });
-  queueList.querySelectorAll("[data-open-patient]").forEach((btn) => {
-    btn.addEventListener("click", () => openPatient(btn.dataset.openPatient));
-  });
+function closeDetail() {
+  selectedId = null;
+  detailPanel.classList.remove("is-open");
+  detailEmpty.hidden = false;
+  detailBody.hidden = true;
+  renderBoard();
+}
+
+function showNewScript(patientId, appointmentId) {
+  scriptForm.hidden = false;
+  scriptForm.prescriptionId.value = "";
+  scriptForm.patientId.value = patientId;
+  scriptForm.appointmentId.value = appointmentId || "";
+  scriptForm.reset();
+  scriptForm.patientId.value = patientId;
+  scriptForm.status.value = "active";
+  scriptForm.intervalDays.value = 28;
+  scriptForm.repeats.value = 5;
 }
 
 async function startCall(appointmentId) {
@@ -90,63 +266,26 @@ async function startCall(appointmentId) {
   }
   callBanner.hidden = false;
   await loadQueue();
+  const item = queue.find((q) => q.appointment.id === appointmentId);
+  if (item?.patient?.id) await openDetail(item.patient.id, appointmentId, { silent: true });
+}
+
+async function completeCall(appointmentId) {
+  await api("/api/telehealth/complete", {
+    method: "POST",
+    body: JSON.stringify({ appointmentId }),
+  });
+  if (activeAppointmentId === appointmentId) {
+    callBanner.hidden = true;
+    activeAppointmentId = null;
+  }
+  await loadQueue();
 }
 
 callDone?.addEventListener("click", async () => {
   if (!activeAppointmentId) return;
-  await api("/api/telehealth/complete", {
-    method: "POST",
-    body: JSON.stringify({ appointmentId: activeAppointmentId }),
-  });
-  callBanner.hidden = true;
-  activeAppointmentId = null;
-  await loadQueue();
+  await completeCall(activeAppointmentId);
 });
-
-async function openPatient(patientId) {
-  const data = await api(`/api/doctor/patients/${patientId}`);
-  selected = data;
-  setView("patient");
-
-  const rx = data.prescriptions[0];
-  patientPanel.innerHTML = `
-    <h3>${data.patient.name}</h3>
-    <p>${data.patient.email} · ${data.patient.phone || "—"} · ${data.patient.state}</p>
-    <p><strong>Support:</strong> ${data.patient.support || "—"}</p>
-    <h4>Scripts on file</h4>
-    <ul class="script-mini-list">
-      ${data.prescriptions.map((r) => `<li><strong>${r.name}</strong> — ${r.status} (${r.repeats}/${r.repeatsTotal} repeats)</li>`).join("") || "<li>None yet</li>"}
-    </ul>
-  `;
-
-  if (rx) {
-    scriptForm.hidden = false;
-    newScriptBtn.hidden = true;
-    scriptForm.prescriptionId.value = rx.id;
-    scriptForm.patientId.value = patientId;
-    scriptForm.name.value = rx.name;
-    scriptForm.form.value = rx.form || "";
-    scriptForm.repeats.value = rx.repeats;
-    scriptForm.intervalDays.value = rx.intervalDays || 28;
-    scriptForm.status.value = rx.status;
-    scriptForm.notes.value = rx.notes || "";
-  } else {
-    scriptForm.hidden = true;
-    newScriptBtn.hidden = false;
-    newScriptBtn.onclick = () => showNewScript(patientId);
-  }
-}
-
-function showNewScript(patientId) {
-  scriptForm.hidden = false;
-  scriptForm.prescriptionId.value = "";
-  scriptForm.patientId.value = patientId;
-  scriptForm.reset();
-  scriptForm.patientId.value = patientId;
-  scriptForm.status.value = "active";
-  scriptForm.intervalDays.value = 28;
-  scriptForm.repeats.value = 5;
-}
 
 scriptForm?.addEventListener("submit", async (e) => {
   e.preventDefault();
@@ -171,18 +310,21 @@ scriptForm?.addEventListener("submit", async (e) => {
     });
   }
 
-  await openPatient(fd.get("patientId"));
-  alert("Script saved — patient will see it in their portal.");
+  await loadQueue();
+  await openDetail(fd.get("patientId"), fd.get("appointmentId"), { silent: true });
 });
 
 loginForm?.addEventListener("submit", async (e) => {
   e.preventDefault();
+  loginError.hidden = true;
   const fd = new FormData(e.target);
   try {
+    clearOtherPortalTokens("doctor");
     const res = await api("/api/auth/login", {
       method: "POST",
       body: JSON.stringify({ email: fd.get("email"), password: fd.get("password") }),
     });
+    if (!res.ok) throw new Error(res.error || "Login failed.");
     if (res.role !== "doctor" && res.role !== "admin") throw new Error("Doctor access only.");
     setToken(res.token);
     document.querySelector("[data-sidebar-name]").textContent = res.user.name;
@@ -195,14 +337,22 @@ loginForm?.addEventListener("submit", async (e) => {
 });
 
 document.querySelector("[data-logout]")?.addEventListener("click", showLogin);
-document.querySelectorAll("[data-staff-nav] button").forEach((btn) => {
-  btn.addEventListener("click", () => setView(btn.dataset.view));
+document.querySelector("[data-refresh-queue]")?.addEventListener("click", loadQueue);
+document.querySelector("[data-close-detail]")?.addEventListener("click", closeDetail);
+searchInput?.addEventListener("input", () => {
+  searchQuery = searchInput.value;
+  renderBoard();
 });
 
 if (getToken()) {
   api("/api/auth/me")
     .then(async (res) => {
-      if (res.role !== "doctor" && res.role !== "admin") throw new Error();
+      if (res.role !== "doctor" && res.role !== "admin") {
+        setToken(null);
+        loginError.textContent = "Signed in elsewhere as a different role. Please sign in as doctor.";
+        loginError.hidden = false;
+        throw new Error("wrong role");
+      }
       document.querySelector("[data-sidebar-name]").textContent = res.user.name;
       showApp();
       await loadQueue();

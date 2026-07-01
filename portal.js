@@ -1,5 +1,7 @@
 import { PRODUCTS } from "./js/data.js";
-import { api, setToken, getToken, isReorderReady, daysUntilReorder } from "./js/api.js";
+import { api, setToken, getToken, configureAuth, clearOtherPortalTokens, isReorderReady, daysUntilReorder } from "./js/api.js";
+
+configureAuth("patient");
 
 const loginView = document.querySelector("[data-login-view]");
 const appView = document.querySelector("[data-app-view]");
@@ -242,10 +244,12 @@ loginForm?.addEventListener("submit", async (e) => {
   e.preventDefault();
   const fd = new FormData(e.target);
   try {
+    clearOtherPortalTokens("patient");
     const res = await api("/api/auth/login", {
       method: "POST",
       body: JSON.stringify({ email: fd.get("email"), password: fd.get("password") }),
     });
+    if (!res.ok) throw new Error(res.error || "Login failed.");
     if (res.role !== "patient") throw new Error("Patient login only — use doctor or admin portals.");
     setToken(res.token);
     loginError.hidden = true;

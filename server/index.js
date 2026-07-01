@@ -129,10 +129,13 @@ const cleanRoutes = {
   "/admin": "admin.html",
 };
 Object.entries(cleanRoutes).forEach(([route, file]) => {
-  app.get(route, (_req, res) => res.sendFile(path.join(DIST, file)));
+  const filePath = path.join(DIST, file);
+  const send = (_req, res) => res.sendFile(filePath);
+  app.get(route, send);
+  app.get(`${route}/`, send);
 });
 
-app.use(express.static(DIST));
+app.use(express.static(DIST, { index: false }));
 
 app.listen(PORT, () => {
   console.log(`Crossroads clinic → http://localhost:${PORT}`);

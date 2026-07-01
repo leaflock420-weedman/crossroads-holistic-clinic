@@ -324,7 +324,15 @@ function doctorQueue(doctorId) {
   const doctor = state.users.find((u) => u.id === doctorId);
   const today = new Date().toISOString().slice(0, 10);
   const appointments = state.appointments
-    .filter((a) => a.status === "confirmed" || a.telehealthStatus === "in_progress")
+    .filter((a) => {
+      if (a.telehealthStatus === "in_progress") return true;
+      if (a.status === "confirmed" && a.telehealthStatus !== "completed") return true;
+      if (a.telehealthStatus === "completed" && a.date === today) return true;
+      const pendingRx = state.prescriptions.some(
+        (r) => r.patientId === a.patientId && (r.status === "pending_review" || r.status === "reorder_requested")
+      );
+      return pendingRx && a.date >= today;
+    })
     .sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`));
 
   return appointments.map((apt) => {

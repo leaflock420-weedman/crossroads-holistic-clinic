@@ -1,4 +1,8 @@
-const TOKEN_KEY = "crossroads-auth-token";
+let TOKEN_KEY = "crossroads-auth-token";
+
+export function configureAuth(portal) {
+  TOKEN_KEY = `crossroads-auth-${portal}`;
+}
 
 export function getToken() {
   return sessionStorage.getItem(TOKEN_KEY);
@@ -7,6 +11,12 @@ export function getToken() {
 export function setToken(token) {
   if (token) sessionStorage.setItem(TOKEN_KEY, token);
   else sessionStorage.removeItem(TOKEN_KEY);
+}
+
+export function clearOtherPortalTokens(portal) {
+  ["patient", "doctor", "admin"].forEach((key) => {
+    if (key !== portal) sessionStorage.removeItem(`crossroads-auth-${key}`);
+  });
 }
 
 export async function api(path, options = {}) {
