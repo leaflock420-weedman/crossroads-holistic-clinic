@@ -396,35 +396,97 @@ function resolveDoctor(state, doctorId, clinicianName) {
   return null;
 }
 
+function getAvailableSlots(state, doctorId, date) {
+  const open = state.availability.filter((s) => s.doctorId === doctorId && s.date === date).map((s) => s.time);
+  const booked = getBookedTimes(state, doctorId, date);
+  return open.filter((t) => !booked.includes(t)).sort();
+}
+
+function validateDemoSlot(state, doctorId, date, time, excludeId = null) {
+  const conflict = state.appointments.find(
+    (a) =>
+      a.id !== excludeId &&
+      a.date === date &&
+      a.time === time &&
+      a.status !== "cancelled" &&
+      (a.doctorId === doctorId || resolveDoctor(state, a.doctorId, a.clinician)?.id === doctorId)
+  );
+  if (conflict) throw new Error("That 15-minute slot is already booked. Pick another open time.");
+  const available = getAvailableSlots(state, doctorId, date);
+  if (!available.includes(time)) {
+    throw new Error(
+      available.length
+        ? `That time is not available. Open slots: ${available.slice(0, 5).join(", ")}`
+        : "No open slots this day — try another date."
+    );
+  }
+}
+
 function doctorQueue(state, doctorId) {
   const doctor = state.users[doctorId];
   const today = todayIso();
-  const appointments = state.appointments
-    .filter((a) => {
-      const patient = state.patients[a.patientId];
-      const assigned =
-        patient?.assignedDoctorId === doctorId ||
-        a.doctorId === doctorId ||
-        a.clinician === doctor?.name;
-      if (!assigned && doctor?.role === "doctor") return false;
-      if (a.telehealthStatus === "in_progress") return true;
-      if (a.status === "confirmed" && a.telehealthStatus !== "completed") return true;
-      if (a.telehealthStatus === "completed" && a.date === today) return true;
-      const pendingRx = state.prescriptions.some(
-        (r) =>
-          r.patientId === a.patientId &&
-          ["pending_review", "pending_dispense", "reorder_requested"].includes(r.status)
-      );
-      return pendingRx && a.date >= today;
-    })
-    .sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`));
+  const doctorChangeRequests = state.changeRequests.filter(
+    (c) =>
+      c.status === "with_doctor" &&
+      (c.assignedDoctorId === doctorId || state.patients[c.patientId]?.assignedDoctorId === doctorId)
+  );
 
-  return appointments.map((apt) => ({
-    appointment: apt,
-    patient: state.patients[apt.patientId],
-    prescriptions: state.prescriptions.filter((r) => r.patientId === apt.patientId),
-    changeRequests: state.changeRequests.filter((c) => c.patientId === apt.patientId && c.status === "pending"),
-  }));
+  const appointmentList = state.appointments.filter((a) => {
+    const patient = state.patients[a.patientId];
+    const assigned =
+      patient?.assignedDoctorId === doctorId ||
+      a.doctorId === doctorId ||
+      a.clinician === doctor?.name;
+    if (!assigned && doctor?.role === "doctor") return false;
+    if (doctorChangeRequests.some((c) => c.patientId === a.patientId)) return true;
+    if (a.telehealthStatus === "in_progress") return true;
+    if (a.status === "confirmed" && a.telehealthStatus !== "completed") return true;
+    if (a.telehealthStatus === "completed" && a.date === today) return true;
+    const pendingRx = state.prescriptions.some(
+      (r) =>
+        r.patientId === a.patientId &&
+        ["pending_review", "pending_dispense", "reorder_requested"].includes(r.status)
+    );
+    return pendingRx && a.date >= today;
+  });
+
+  const seenPatients = new Set(appointmentList.map((a) => a.patientId));
+  doctorChangeRequests.forEach((chg) => {
+    if (seenPatients.has(chg.patientId)) return;
+    const latest = state.appointments
+      .filter((a) => a.patientId === chg.patientId)
+      .sort((a, b) => `${b.date} ${b.time}`.localeCompare(`${a.date} ${a.time}`))[0];
+    if (latest) appointmentList.push(latest);
+    else {
+      appointmentList.push({
+        id: `APT-CHG-${chg.id}`,
+        patientId: chg.patientId,
+        date: today,
+        time: "—",
+        doctorId,
+        clinician: doctor?.name || "Clinician",
+        format: "Medication change",
+        status: "confirmed",
+        type: "Change request review",
+        patientType: "existing",
+        fee: 0,
+        durationMinutes: APPOINTMENT_MINUTES,
+        telehealthStatus: "scheduled",
+      });
+    }
+    seenPatients.add(chg.patientId);
+  });
+
+  return appointmentList
+    .sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`))
+    .map((apt) => ({
+      appointment: apt,
+      patient: state.patients[apt.patientId],
+      prescriptions: state.prescriptions.filter((r) => r.patientId === apt.patientId),
+      changeRequests: state.changeRequests.filter(
+        (c) => c.patientId === apt.patientId && c.status === "with_doctor"
+      ),
+    }));
 }
 
 function getBookedTimes(state, doctorId, date) {
@@ -720,6 +782,8 @@ export function demoApi(path, options = {}, token) {
     const patient = state.patients[session.user.id];
     if (!patient) throw new Error("Patient not found");
     const doctor = state.users[patient.assignedDoctorId];
+    if (!doctor) throw new Error("No clinician assigned — contact the clinic.");
+    validateDemoSlot(state, doctor.id, body.date, body.time);
     const isNew = body.patientType === "new";
     state.appointments.push({
       id: uid("APT"),
@@ -774,10 +838,28 @@ export function demoApi(path, options = {}, token) {
     return { ok: true, appointment: apt, mode: "demo" };
   }
 
+  if (pathname.startsWith("/api/admin/change-requests/") && pathname.endsWith("/forward") && method === "POST") {
+    const id = pathname.split("/")[4];
+    const req = state.changeRequests.find((c) => c.id === id);
+    if (!req) throw new Error("Change request not found");
+    if (req.status !== "pending") throw new Error("Request already forwarded or processed.");
+    const doctor = state.users[body.doctorId];
+    if (!doctor || doctor.role !== "doctor") throw new Error("Doctor not found");
+    req.status = "with_doctor";
+    req.assignedDoctorId = doctor.id;
+    req.forwardedAt = new Date().toISOString();
+    req.forwardedBy = session.user.id;
+    const patient = state.patients[req.patientId];
+    if (patient) patient.assignedDoctorId = doctor.id;
+    saveDemoState(state);
+    return { ok: true, changeRequest: req, doctor, mode: "demo" };
+  }
+
   if (pathname.startsWith("/api/doctor/change-requests/") && pathname.endsWith("/approve") && method === "POST") {
     const id = pathname.split("/")[4];
     const req = state.changeRequests.find((c) => c.id === id);
     if (!req) throw new Error("Change request not found");
+    if (!["with_doctor", "pending"].includes(req.status)) throw new Error("Request already processed.");
     const rx = state.prescriptions.find((r) => r.id === req.prescriptionId);
     Object.assign(rx, {
       name: body.name || req.requestedProduct || rx.name,
@@ -807,6 +889,7 @@ export function demoApi(path, options = {}, token) {
     const patient = state.patients[body.patientId];
     if (!patient) throw new Error("Patient not found");
     const doctor = state.users[body.doctorId || patient.assignedDoctorId];
+    if (doctor) validateDemoSlot(state, doctor.id, body.date, body.time);
     const isNew = body.patientType === "new";
     state.appointments.push({
       id: uid("APT"),
@@ -831,6 +914,8 @@ export function demoApi(path, options = {}, token) {
     const id = pathname.split("/").pop();
     const apt = state.appointments.find((a) => a.id === id);
     if (!apt) throw new Error("Appointment not found");
+    const doctorId = body.doctorId || apt.doctorId || state.patients[apt.patientId]?.assignedDoctorId;
+    if (doctorId) validateDemoSlot(state, doctorId, body.date || apt.date, body.time || apt.time, id);
     Object.assign(apt, body);
     if (body.patientType === "new") apt.durationMinutes = NEW_PATIENT_MINUTES;
     if (body.patientType === "existing") apt.durationMinutes = APPOINTMENT_MINUTES;
@@ -842,6 +927,7 @@ export function demoApi(path, options = {}, token) {
     const patient = state.patients[body.patientId];
     if (!patient) throw new Error("Patient not found");
     const doctor = state.users[body.doctorId];
+    if (doctor) validateDemoSlot(state, doctor.id, body.date, body.time);
     const isNew = body.patientType === "new";
     state.appointments.push({
       id: uid("APT"),
@@ -872,9 +958,10 @@ export function demoApi(path, options = {}, token) {
         reorderRequests: state.prescriptions.filter((r) => r.status === "reorder_requested").length,
         pendingDispense: state.prescriptions.filter((r) => r.status === "pending_dispense").length,
         changeRequests: state.changeRequests.filter((c) => c.status === "pending").length,
+        changeRequestsWithDoctor: state.changeRequests.filter((c) => c.status === "with_doctor").length,
         orders: state.orders.length,
       },
-      changeRequests: state.changeRequests.filter((c) => c.status === "pending"),
+      changeRequests: state.changeRequests.filter((c) => ["pending", "with_doctor"].includes(c.status)),
       patients: Object.values(state.patients),
       appointments: state.appointments,
       prescriptions: state.prescriptions,
@@ -951,6 +1038,8 @@ export function demoApi(path, options = {}, token) {
     const id = pathname.split("/").pop();
     const apt = state.appointments.find((a) => a.id === id);
     if (!apt) throw new Error("Appointment not found");
+    const doctorId = body.doctorId || apt.doctorId;
+    if (doctorId) validateDemoSlot(state, doctorId, body.date || apt.date, body.time || apt.time, id);
     if (body.doctorId) {
       const doctor = state.users[body.doctorId];
       if (doctor) {

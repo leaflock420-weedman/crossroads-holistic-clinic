@@ -88,9 +88,11 @@
             <h3>Book follow-up</h3>
             <p class="view-intro">New patients need a review in 30 days. Returning patients typically book every 60 days when scripts run out.</p>
             <form class="flow-form" data-followup-form>
-              <label>Preferred date <input type="date" name="date" required data-followup-date /></label>
-              <label>Preferred time <input type="time" name="time" required step="900" /></label>
-              <button class="button primary" type="submit">Request follow-up appointment</button>
+              <p class="form-note">Pick an open 15-minute phone slot with your assigned clinician.</p>
+              <label>Date <input type="date" name="date" required data-followup-date /></label>
+              <div class="slot-grid followup-slot-grid" data-followup-slots></div>
+              <input type="hidden" name="time" data-followup-time value="" />
+              <button class="button primary" type="submit">Book follow-up appointment</button>
             </form>
             <p class="form-note" data-followup-result hidden></p>
           </div>

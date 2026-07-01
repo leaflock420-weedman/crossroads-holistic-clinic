@@ -299,7 +299,7 @@ async function openDetail(patientId, appointmentId, opts = {}) {
     : "<li>No scripts yet</li>";
   bindScriptPickers(data, patientId, appointmentId);
 
-  const changes = data.changeRequests?.filter((c) => c.status === "pending") || [];
+  const changes = data.changeRequests?.filter((c) => c.status === "with_doctor") || [];
   const changeSection = document.querySelector("[data-change-requests-section]");
   const changeEl = document.querySelector("[data-change-requests]");
   if (changes.length) {
@@ -314,7 +314,7 @@ async function openDetail(patientId, appointmentId, opts = {}) {
           <p class="queue-phone">${c.reason} · ${c.notes || ""}</p>
         </div>
         <div>
-          <button class="button primary" type="button" data-approve-change="${c.id}">Approve</button>
+          <button class="button primary" type="button" data-approve-change="${c.id}">Approve change &amp; send to admin</button>
           <button class="button ghost" type="button" data-deny-change="${c.id}">Decline</button>
         </div>
       </article>`
@@ -330,9 +330,9 @@ async function openDetail(patientId, appointmentId, opts = {}) {
             form: req.requestedForm,
           }),
         });
-        await loadQueue();
-        await openDetail(patientId, appointmentId, { silent: true });
-        alert("Change approved — sent to admin dispense queue.");
+        notifyClinicUpdate();
+        await loadQueue({ refreshDetail: true });
+        alert("Change approved — updated script is now in the admin approval queue.");
       });
     });
     changeEl.querySelectorAll("[data-deny-change]").forEach((btn) => {
@@ -342,8 +342,8 @@ async function openDetail(patientId, appointmentId, opts = {}) {
           method: "POST",
           body: JSON.stringify({ reason: reason || "" }),
         });
-        await loadQueue();
-        await openDetail(patientId, appointmentId, { silent: true });
+        notifyClinicUpdate();
+        await loadQueue({ refreshDetail: true });
       });
     });
   } else {
@@ -633,8 +633,12 @@ document.querySelector("[data-schedule-form]")?.addEventListener("submit", async
     });
   }
   notifyClinicUpdate();
-  await loadQueue();
-  alert("Call time saved — visible in admin appointments.");
+  try {
+    await loadQueue({ refreshDetail: true });
+    alert("Call time saved — visible in admin appointments.");
+  } catch (err) {
+    alert(err.message);
+  }
 });
 
 availabilityDate?.addEventListener("change", loadAvailability);

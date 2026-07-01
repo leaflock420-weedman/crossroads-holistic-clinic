@@ -37,7 +37,9 @@ function visiblePrescriptions(list) {
 }
 
 function pendingChangeFor(rxId) {
-  return (patientData?.changeRequests || []).find((c) => c.prescriptionId === rxId && c.status === "pending");
+  return (patientData?.changeRequests || []).find(
+    (c) => c.prescriptionId === rxId && ["pending", "with_doctor"].includes(c.status)
+  );
 }
 
 function showLogin(clear = true) {
@@ -205,10 +207,11 @@ changeForm?.addEventListener("submit", async (e) => {
         notes: fd.get("notes"),
       }),
     });
+    notifyClinicUpdate();
     changeDialog.close();
     await refresh();
     setView("scripts");
-    alert("Change request sent to your clinician.");
+    alert("Change request sent — admin will review and forward to your clinician.");
   } catch (err) {
     alert(err.message);
   }
@@ -332,6 +335,13 @@ async function refresh() {
   renderAppointments();
   renderProducts();
   renderProfile();
+  const followupDate = document.querySelector("[data-followup-date]");
+  if (followupDate && !followupDate.value) {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    followupDate.value = d.toISOString().slice(0, 10);
+  }
+  loadFollowupSlots();
   showApp();
   stopPolling?.();
   unsubscribeClinic?.();
@@ -390,22 +400,74 @@ document.querySelector("[data-address-form]")?.addEventListener("submit", async 
   alert("Address saved.");
 });
 
+async function loadFollowupSlots() {
+  const grid = document.querySelector("[data-followup-slots]");
+  const dateInput = document.querySelector("[data-followup-date]");
+  const timeInput = document.querySelector("[data-followup-time]");
+  if (!grid || !dateInput) return;
+  const doctorId = patientData?.patient?.assignedDoctorId;
+  const date = dateInput.value;
+  timeInput.value = "";
+  if (!doctorId) {
+    grid.innerHTML = `<p class="empty-state">No clinician assigned yet — contact the clinic.</p>`;
+    return;
+  }
+  if (!date) {
+    grid.innerHTML = `<p class="empty-state">Select a date to see open 15-minute slots.</p>`;
+    return;
+  }
+  grid.innerHTML = `<p class="empty-state">Loading open slots…</p>`;
+  try {
+    const data = await api(`/api/booking/slots?doctorId=${encodeURIComponent(doctorId)}&date=${encodeURIComponent(date)}`);
+    const times = data.available || [];
+    if (!times.length) {
+      grid.innerHTML = `<p class="empty-state">No open slots this day. Try another date.</p>`;
+      return;
+    }
+    grid.innerHTML = times
+      .map(
+        (time) => `
+      <label class="slot">
+        <input type="radio" name="followupSlot" value="${time}" required data-followup-slot />
+        <span>${time}</span>
+      </label>`
+      )
+      .join("");
+    grid.querySelectorAll("[data-followup-slot]").forEach((input) => {
+      input.addEventListener("change", () => {
+        timeInput.value = input.value;
+      });
+    });
+  } catch (err) {
+    grid.innerHTML = `<p class="empty-state">${err.message}</p>`;
+  }
+}
+
+document.querySelector("[data-followup-date]")?.addEventListener("change", loadFollowupSlots);
+
 document.querySelector("[data-followup-form]")?.addEventListener("submit", async (e) => {
   e.preventDefault();
   const fd = new FormData(e.target);
   const resultEl = document.querySelector("[data-followup-result]");
+  const time = document.querySelector("[data-followup-time]")?.value || fd.get("time");
+  if (!time) {
+    resultEl.textContent = "Please select an open 15-minute time slot.";
+    resultEl.hidden = false;
+    return;
+  }
   try {
     const hasActive = (patientData?.prescriptions || []).some((r) => r.status === "active");
     await api("/api/patient/appointments", {
       method: "POST",
       body: JSON.stringify({
         date: fd.get("date"),
-        time: fd.get("time"),
+        time,
         patientType: hasActive ? "existing" : "new",
         type: hasActive ? "60-day review" : "30-day review",
       }),
     });
-    resultEl.textContent = "Follow-up requested — your clinician will confirm the time.";
+    notifyClinicUpdate();
+    resultEl.textContent = "Follow-up booked — you'll see it in your appointments list.";
     resultEl.hidden = false;
     await refresh();
   } catch (err) {

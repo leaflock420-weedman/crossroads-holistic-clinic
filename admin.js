@@ -106,14 +106,102 @@ async function loadOverview(opts = {}) {
   });
 }
 
+function changeReasonLabel(reason) {
+  const map = {
+    out_of_stock: "Out of stock",
+    side_effects: "Side effects",
+    preference: "Patient preference",
+    other: "Other",
+  };
+  return map[reason] || reason || "Change requested";
+}
+
+function renderChangeRequests() {
+  const el = document.querySelector("[data-change-requests-list]");
+  if (!el) return;
+  const incoming = (overview.changeRequests || []).filter((c) => c.status === "pending");
+  const withDoctor = (overview.changeRequests || []).filter((c) => c.status === "with_doctor");
+
+  if (!incoming.length && !withDoctor.length) {
+    el.innerHTML = `<p class="empty-state">No medication change requests. Patient requests from the portal appear here instantly.</p>`;
+    return;
+  }
+
+  el.innerHTML = `
+    ${incoming.length ? `<h4>New from patients</h4>` : ""}
+    ${
+      incoming.length
+        ? incoming
+            .map(
+              (c) => `
+        <article class="queue-card queue-card--fresh" data-change-row="${c.id}">
+          <div>
+            <strong>${patientName(c.patientId)}</strong>
+            <p>${c.currentName} · ${c.currentForm}</p>
+            <p>Requested: <strong>${c.requestedProduct || "Alternative"}</strong> · ${c.requestedForm || "—"}</p>
+            <p class="queue-phone">${changeReasonLabel(c.reason)} · ${c.notes || ""}</p>
+          </div>
+          <div class="queue-card__actions">
+            <select class="admin-inline-select" data-forward-doctor="${c.id}">
+              <option value="">Select doctor</option>
+              ${doctorOptions(
+                overview.patients.find((p) => p.id === c.patientId)?.assignedDoctorId || ""
+              )}
+            </select>
+            <button class="button primary" type="button" data-forward-change="${c.id}">Send to doctor</button>
+          </div>
+        </article>`
+            )
+            .join("")
+        : ""
+    }
+    ${
+      withDoctor.length
+        ? `<h4>Awaiting doctor approval</h4>${withDoctor
+            .map(
+              (c) => `
+        <article class="queue-card">
+          <div>
+            <strong>${patientName(c.patientId)}</strong>
+            <p>${c.currentName} → ${c.requestedProduct || c.requestedForm}</p>
+            <p class="queue-phone">With ${doctorName(c.assignedDoctorId)} · doctor approves → script hits approval queue</p>
+          </div>
+          <span class="crm-tag">With doctor</span>
+        </article>`
+            )
+            .join("")}`
+        : ""
+    }
+  `;
+
+  el.querySelectorAll("[data-forward-change]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const id = btn.dataset.forwardChange;
+      const doctorId = document.querySelector(`[data-forward-doctor="${id}"]`)?.value;
+      if (!doctorId) {
+        alert("Select which doctor should approve this change.");
+        return;
+      }
+      await api(`/api/admin/change-requests/${id}/forward`, {
+        method: "POST",
+        body: JSON.stringify({ doctorId }),
+      });
+      notifyClinicUpdate();
+      await loadOverview();
+    });
+  });
+}
+
 function renderApproveQueue() {
   const s = overview.stats;
   document.querySelector("[data-admin-stats]").innerHTML = `
     <article class="stat"><strong>${s.pendingDispense || 0}</strong><span>Awaiting approval</span></article>
     <article class="stat"><strong>${s.reorderRequests}</strong><span>Reorder requests</span></article>
-    <article class="stat"><strong>${s.changeRequests || 0}</strong><span>Change requests</span></article>
-    <article class="stat"><strong>${s.patients}</strong><span>Patients</span></article>
+    <article class="stat"><strong>${s.changeRequests || 0}</strong><span>New change requests</span></article>
+    <article class="stat"><strong>${s.changeRequestsWithDoctor || 0}</strong><span>With doctor</span></article>
   `;
+
+  renderChangeRequests();
 
   const pending = overview.prescriptions
     .filter((r) => r.status === "pending_dispense")
@@ -299,8 +387,8 @@ function renderAppointments() {
       <form class="flow-form admin-form-grid" data-schedule-apt-form>
         <label>Patient <select name="patientId" required><option value="">Select patient</option>${patients}</select></label>
         <label>Doctor <select name="doctorId" data-doctor-select required>${doctorOptions()}</select></label>
-        <label>Date <input type="date" name="date" required /></label>
-        <label>Time <select name="time" required>${timeSlotOptions("09:00")}</select></label>
+        <label>Date <input type="date" name="date" required data-schedule-date /></label>
+        <label>Time <select name="time" required data-schedule-time><option value="">Select date &amp; doctor first</option></select></label>
         <label>Visit type
           <select name="patientType">
             <option value="existing">Returning · 15 min</option>
@@ -350,16 +438,20 @@ function renderAppointments() {
   document.querySelectorAll("[data-save-apt]").forEach((btn) => {
     btn.addEventListener("click", async () => {
       const id = btn.dataset.saveApt;
-      await api(`/api/admin/appointments/${id}`, {
-        method: "PUT",
-        body: JSON.stringify({
-          date: document.querySelector(`[data-apt-date="${id}"]`)?.value,
-          time: document.querySelector(`[data-apt-time="${id}"]`)?.value,
-          doctorId: document.querySelector(`[data-apt-doctor="${id}"]`)?.value || null,
-        }),
-      });
-      notifyClinicUpdate();
-      await loadOverview({ forceAppointments: true });
+      try {
+        await api(`/api/admin/appointments/${id}`, {
+          method: "PUT",
+          body: JSON.stringify({
+            date: document.querySelector(`[data-apt-date="${id}"]`)?.value,
+            time: document.querySelector(`[data-apt-time="${id}"]`)?.value,
+            doctorId: document.querySelector(`[data-apt-doctor="${id}"]`)?.value || null,
+          }),
+        });
+        notifyClinicUpdate();
+        await loadOverview({ forceAppointments: true });
+      } catch (err) {
+        alert(err.message);
+      }
     });
   });
 

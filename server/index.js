@@ -137,6 +137,14 @@ app.post("/api/doctor/change-requests/:id/deny", auth(["doctor"]), (req, res) =>
   res.json(result);
 });
 
+app.post("/api/admin/change-requests/:id/forward", auth(["admin"]), (req, res) => {
+  const { doctorId } = req.body || {};
+  if (!doctorId) return res.status(400).json({ error: "doctorId required" });
+  const result = store.forwardChangeRequest(req.params.id, doctorId, req.session.user.id);
+  if (!result.ok) return res.status(400).json(result);
+  res.json(result);
+});
+
 app.post("/api/doctor/appointments", auth(["doctor"]), (req, res) => {
   const result = store.createAppointment({
     ...req.body,
