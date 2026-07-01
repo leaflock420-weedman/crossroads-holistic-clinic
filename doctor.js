@@ -393,7 +393,7 @@ loginForm?.addEventListener("submit", async (e) => {
       body: JSON.stringify({ email: fd.get("email"), password: fd.get("password") }),
     });
     if (!res.ok) throw new Error(res.error || "Login failed.");
-    if (res.role !== "doctor" && res.role !== "admin") throw new Error("Doctor access only.");
+    if (res.role !== "doctor") throw new Error("Doctor access only — use the admin portal for dispensing.");
     setToken(res.token);
     document.querySelector("[data-sidebar-name]").textContent = res.user.name;
     showApp();
@@ -414,7 +414,7 @@ searchInput?.addEventListener("input", () => {
 if (getToken()) {
   api("/api/auth/me")
     .then(async (res) => {
-      if (res.role !== "doctor" && res.role !== "admin") {
+      if (res.role !== "doctor") {
         setToken(null);
         loginError.textContent = "Signed in elsewhere as a different role. Please sign in as doctor.";
         loginError.hidden = false;

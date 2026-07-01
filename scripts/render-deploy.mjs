@@ -5,7 +5,14 @@ import { existsSync } from "fs";
 import { mkdir } from "fs/promises";
 
 const require = createRequire(import.meta.url);
-const playwrightRoot = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "leaflock-hydro-crm");
+const PLAYWRIGHT_ROOTS = [
+  path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "..", "leaflock-hydro-crm"),
+  path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "..", "leaflock-pharmacy-crm"),
+  "C:\\Users\\wordo\\leaflock-hydro-crm",
+  "C:\\Users\\wordo\\leaflock-pharmacy-crm",
+].filter((p, i, arr) => arr.indexOf(p) === i);
+const playwrightRoot = PLAYWRIGHT_ROOTS.find((p) => existsSync(path.join(p, "node_modules", "playwright")));
+if (!playwrightRoot) throw new Error("Playwright not found. Install it in leaflock-hydro-crm or leaflock-pharmacy-crm.");
 const { chromium } = require(require.resolve("playwright", { paths: [playwrightRoot] }));
 
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));

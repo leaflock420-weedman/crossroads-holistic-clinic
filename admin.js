@@ -80,7 +80,7 @@ function renderDispense() {
             <p>${patientName(r.patientId)} · ${r.form}</p>
             <p class="queue-phone">${r.status === "pending_review" ? "Awaiting consult" : "Doctor submitted — ready to release"}</p>
           </div>
-          <button class="button primary" type="button" data-dispense-rx="${r.id}">Dispense &amp; release to patient</button>
+          <button class="button primary" type="button" data-dispense-rx="${r.id}">Dispense &amp; send via eRx</button>
         </article>
       `).join("")
     : `<p class="empty-state">No scripts awaiting dispense.</p>`;
@@ -90,14 +90,17 @@ function renderDispense() {
     ? reorders.map((r) => `
         <article class="queue-card">
           <div><strong>${r.name}</strong><p>${patientName(r.patientId)} · ${r.form}</p></div>
-          <button class="button primary" type="button" data-dispense-rx="${r.id}">Approve reorder &amp; dispatch</button>
+          <button class="button primary" type="button" data-dispense-rx="${r.id}">Approve reorder &amp; send via eRx</button>
         </article>
       `).join("")
     : `<p class="empty-state">No pending reorder requests.</p>`;
 
   document.querySelectorAll("[data-dispense-rx]").forEach((btn) => {
     btn.addEventListener("click", async () => {
-      await api(`/api/admin/prescriptions/${btn.dataset.dispenseRx}/dispense`, { method: "POST" });
+      const res = await api(`/api/admin/prescriptions/${btn.dataset.dispenseRx}/dispense`, { method: "POST" });
+      if (res.erx?.erxToken) {
+        alert(`Dispensed and sent via eRx.\n\nPatient token: ${res.erx.erxToken}\nThey can also order at ausscripts.erx.com.au`);
+      }
       await loadOverview();
     });
   });

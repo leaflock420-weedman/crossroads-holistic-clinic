@@ -1257,6 +1257,27 @@
   }
 }
 
+.erx-token-card {
+  margin-top: 1rem;
+  padding: 1rem;
+  border-radius: 10px;
+  background: rgba(120, 200, 140, 0.08);
+  border: 1px solid rgba(120, 200, 140, 0.25);
+}
+
+.erx-token-card .erx-token {
+  font-family: ui-monospace, monospace;
+  font-size: 1.35rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  margin: 0.35rem 0 0.5rem;
+}
+
+.erx-token-card a {
+  color: inherit;
+  text-decoration: underline;
+}
+
 @media (max-width: 900px) {
   .doctor-crm-page .crm-app {
     grid-template-columns: 1fr;

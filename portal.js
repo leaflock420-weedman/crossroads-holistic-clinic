@@ -153,6 +153,15 @@ function renderScripts() {
         <div><dt>Next reorder</dt><dd>${rx.nextReorderAt ? formatDate(rx.nextReorderAt) : "TBC"}</dd></div>
       </dl>
       <p class="script-note">${rx.notes || ""}</p>
+      ${
+        rx.erxToken
+          ? `<div class="erx-token-card">
+              <p class="eyebrow">Electronic prescription (eRx)</p>
+              <p class="erx-token">${rx.erxToken}</p>
+              <p>Present this token at any pharmacy, or <a href="${rx.ausscriptsUrl || "https://ausscripts.erx.com.au/"}" target="_blank" rel="noopener">order via AusScripts</a>.</p>
+            </div>`
+          : ""
+      }
       ${ready ? `<button type="button" class="button primary" data-reorder="${rx.id}">Request reorder</button>` : ""}
     </article>`;
   }).join("");

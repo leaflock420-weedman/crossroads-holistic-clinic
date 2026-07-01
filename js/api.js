@@ -1,4 +1,4 @@
-import { demoApi, DEMO_ACCOUNT_HINT } from "./demo-api.js";
+import { demoApi, DEMO_ACCOUNT_HINT, isKnownDemoEmail } from "./demo-api.js";
 
 let TOKEN_KEY = "crossroads-auth-token";
 let apiMode = null;
@@ -26,12 +26,21 @@ export function isDemoMode() {
   return apiMode === "demo";
 }
 
+export function forceDemoMode() {
+  apiMode = "demo";
+}
+
 async function detectApiMode() {
   if (apiMode) return apiMode;
   try {
     const res = await fetch("/api/health", { headers: { Accept: "application/json" } });
     const text = await res.text();
-    const data = JSON.parse(text);
+    const trimmed = text.trim();
+    if (!trimmed.startsWith("{")) {
+      apiMode = "demo";
+      return apiMode;
+    }
+    const data = JSON.parse(trimmed);
     if (data?.ok && data?.service === "crossroads-clinic") {
       apiMode = "live";
       return apiMode;
@@ -41,17 +50,16 @@ async function detectApiMode() {
   return apiMode;
 }
 
-export async function api(path, options = {}) {
-  const mode = await detectApiMode();
-
-  if (mode === "demo") {
-    try {
-      return demoApi(path, options, getToken());
-    } catch (err) {
-      throw new Error(err.message || "Demo request failed");
-    }
+function loginBodyEmail(options) {
+  if (!options.body) return "";
+  try {
+    return String(JSON.parse(options.body).email || "").toLowerCase().trim();
+  } catch {
+    return "";
   }
+}
 
+async function fetchLive(path, options = {}) {
   const headers = { "Content-Type": "application/json", ...(options.headers || {}) };
   const token = getToken();
   if (token) headers.Authorization = `Bearer ${token}`;
@@ -62,11 +70,38 @@ export async function api(path, options = {}) {
   try {
     data = text ? JSON.parse(text) : {};
   } catch {
+    return { res, data: null, parseError: true };
+  }
+  return { res, data, parseError: false };
+}
+
+export async function api(path, options = {}) {
+  let mode = await detectApiMode();
+
+  if (mode === "demo") {
+    try {
+      return demoApi(path, options, getToken());
+    } catch (err) {
+      throw new Error(err.message || "Demo request failed");
+    }
+  }
+
+  let { res, data, parseError } = await fetchLive(path, options);
+
+  if (parseError) {
     apiMode = "demo";
+    if (path.includes("/auth/login") && isKnownDemoEmail(loginBodyEmail(options))) {
+      return demoApi(path, options, getToken());
+    }
     if (path.includes("/auth/login")) {
       throw new Error(`Login unavailable on server. ${DEMO_ACCOUNT_HINT}`);
     }
     throw new Error("Server returned an invalid response. Try demo credentials or refresh in a minute.");
+  }
+
+  if (!res.ok && path.includes("/auth/login") && isKnownDemoEmail(loginBodyEmail(options))) {
+    apiMode = "demo";
+    return demoApi(path, options, getToken());
   }
 
   if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);

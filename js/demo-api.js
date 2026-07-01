@@ -1,12 +1,27 @@
 import { generateTimeSlots, APPOINTMENT_MINUTES } from "./data.js";
 
-const DEMO_STATE_KEY = "crossroads-demo-state-v2";
+const DEMO_STATE_KEY = "crossroads-demo-state-v3";
 
 const DEMO_ACCOUNTS = {
   "demo@crossroads.clinic": { password: "demo1234", role: "patient" },
+  "alex@crossroads.clinic": { password: "demo1234", role: "patient" },
+  "sam@crossroads.clinic": { password: "demo1234", role: "patient" },
+  "morgan@crossroads.clinic": { password: "demo1234", role: "patient" },
   "dr.patel@crossroads.clinic": { password: "Doctor2026", role: "doctor" },
+  "dr.nguyen@crossroads.clinic": { password: "Doctor2026", role: "doctor" },
   "admin@crossroads.clinic": { password: "CrossroadsAdmin2026", role: "admin" },
 };
+
+export function isKnownDemoEmail(email) {
+  return Boolean(DEMO_ACCOUNTS[String(email || "").toLowerCase().trim()]);
+}
+
+function generateErxToken() {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let token = "";
+  for (let i = 0; i < 8; i++) token += chars[Math.floor(Math.random() * chars.length)];
+  return token;
+}
 
 function todayIso() {
   return new Date().toISOString().slice(0, 10);
@@ -38,22 +53,14 @@ function seedAvailability(state, doctorId) {
   }
 }
 
+function offsetDateIso(days) {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
 function buildInitialState() {
   const today = todayIso();
-  const followUp = new Date();
-  followUp.setDate(followUp.getDate() + 14);
-  const patient = {
-    id: "PT-DEMO-JORDAN",
-    role: "patient",
-    name: "Jordan Mitchell",
-    email: "demo@crossroads.clinic",
-    phone: "0412 345 678",
-    state: "NSW",
-    support: "Sleep and evening routine support",
-    stage: "Portal active",
-    paid: true,
-    assignedDoctorId: "DOC-DEMO-PATEL",
-  };
   const doctor = {
     id: "DOC-DEMO-PATEL",
     role: "doctor",
@@ -75,86 +82,232 @@ function buildInitialState() {
     email: "admin@crossroads.clinic",
     phone: "1800 000 000",
   };
-  const aptToday = {
-    id: "APT-DEMO-TODAY",
-    patientId: patient.id,
-    date: today,
-    time: "14:30",
-    clinician: doctor.name,
-    doctorId: doctor.id,
-    format: "Phone consult",
-    status: "confirmed",
-    type: "Follow-up consult",
-    fee: 49,
-    durationMinutes: APPOINTMENT_MINUTES,
-    telehealthStatus: "scheduled",
+
+  const jordan = {
+    id: "PT-DEMO-JORDAN",
+    role: "patient",
+    name: "Jordan Mitchell",
+    email: "demo@crossroads.clinic",
+    phone: "0412 345 678",
+    state: "NSW",
+    support: "Sleep and evening routine support",
+    stage: "Portal active",
+    paid: true,
+    assignedDoctorId: doctor.id,
   };
-  const aptFollow = {
-    id: "APT-DEMO-FOLLOW",
-    patientId: patient.id,
-    date: followUp.toISOString().slice(0, 10),
-    time: "10:00",
-    clinician: doctor.name,
-    doctorId: doctor.id,
-    format: "Phone consult",
-    status: "confirmed",
-    type: "Interval check-in",
-    fee: 49,
-    durationMinutes: APPOINTMENT_MINUTES,
-    telehealthStatus: "scheduled",
+  const alex = {
+    id: "PT-DEMO-ALEX",
+    role: "patient",
+    name: "Alex Taylor",
+    email: "alex@crossroads.clinic",
+    phone: "0423 111 222",
+    state: "VIC",
+    support: "Daytime focus and routine",
+    stage: "Portal active",
+    paid: true,
+    assignedDoctorId: doctor2.id,
   };
-  const rxActive = {
-    id: "RX-DEMO-ACTIVE",
-    patientId: patient.id,
-    name: "Holistic sleep support — Flower",
-    form: "Dried herb · 10g",
-    repeats: 4,
-    repeatsTotal: 5,
-    status: "active",
-    intervalDays: 28,
-    prescribedAt: new Date(Date.now() - 35 * 86400000).toISOString(),
-    nextReorderAt: new Date(Date.now() - 2 * 86400000).toISOString(),
-    prescribedBy: doctor.id,
-    notes: "Evening use as discussed. Reorder is ready now for demo.",
+  const sam = {
+    id: "PT-DEMO-SAM",
+    role: "patient",
+    name: "Sam Rivera",
+    email: "sam@crossroads.clinic",
+    phone: "0434 555 666",
+    state: "QLD",
+    support: "Pain and mobility support",
+    stage: "Portal active",
+    paid: true,
+    assignedDoctorId: doctor.id,
   };
-  const rxReorder = {
-    id: "RX-DEMO-REORDER",
-    patientId: patient.id,
-    name: "Calm routine — Oil",
-    form: "Oral oil · 30ml",
-    repeats: 2,
-    repeatsTotal: 5,
-    status: "reorder_requested",
-    intervalDays: 28,
-    prescribedAt: new Date(Date.now() - 60 * 86400000).toISOString(),
-    nextReorderAt: new Date(Date.now() + 26 * 86400000).toISOString(),
-    prescribedBy: doctor.id,
-    notes: "Pending pharmacy dispatch — visible in admin queue.",
+  const morgan = {
+    id: "PT-DEMO-MORGAN",
+    role: "patient",
+    name: "Morgan Lee",
+    email: "morgan@crossroads.clinic",
+    phone: "0445 777 888",
+    state: "WA",
+    support: "Anxiety and sleep balance",
+    stage: "Portal active",
+    paid: true,
+    assignedDoctorId: doctor2.id,
   };
-  const rxPendingDispense = {
-    id: "RX-DEMO-PENDING",
-    patientId: patient.id,
-    name: "Evening calm — Capsules",
-    form: "Capsules · 30 pack",
-    repeats: 5,
-    repeatsTotal: 5,
-    status: "pending_dispense",
-    intervalDays: 28,
-    prescribedAt: null,
-    nextReorderAt: null,
-    prescribedBy: doctor.id,
-    submittedAt: new Date(Date.now() - 3600000).toISOString(),
-    notes: "Doctor submitted — awaiting admin dispense.",
-  };
+
   const state = {
     users: { [doctor.id]: doctor, [doctor2.id]: doctor2, [admin.id]: admin },
-    patients: { [patient.id]: patient },
-    appointments: [aptToday, aptFollow],
-    prescriptions: [rxActive, rxReorder, rxPendingDispense],
+    patients: {
+      [jordan.id]: jordan,
+      [alex.id]: alex,
+      [sam.id]: sam,
+      [morgan.id]: morgan,
+    },
+    appointments: [
+      {
+        id: "APT-DEMO-JORDAN-1",
+        patientId: jordan.id,
+        date: today,
+        time: "14:30",
+        clinician: doctor.name,
+        doctorId: doctor.id,
+        format: "Phone consult",
+        status: "confirmed",
+        type: "Follow-up consult",
+        fee: 49,
+        durationMinutes: APPOINTMENT_MINUTES,
+        telehealthStatus: "scheduled",
+      },
+      {
+        id: "APT-DEMO-JORDAN-2",
+        patientId: jordan.id,
+        date: offsetDateIso(14),
+        time: "10:00",
+        clinician: doctor.name,
+        doctorId: doctor.id,
+        format: "Phone consult",
+        status: "confirmed",
+        type: "Interval check-in",
+        fee: 49,
+        durationMinutes: APPOINTMENT_MINUTES,
+        telehealthStatus: "scheduled",
+      },
+      {
+        id: "APT-DEMO-ALEX-1",
+        patientId: alex.id,
+        date: today,
+        time: "10:15",
+        clinician: doctor2.name,
+        doctorId: doctor2.id,
+        format: "Phone consult",
+        status: "confirmed",
+        type: "Initial consult",
+        fee: 49,
+        durationMinutes: APPOINTMENT_MINUTES,
+        telehealthStatus: "scheduled",
+      },
+      {
+        id: "APT-DEMO-SAM-1",
+        patientId: sam.id,
+        date: today,
+        time: "09:00",
+        clinician: doctor.name,
+        doctorId: doctor.id,
+        format: "Phone consult",
+        status: "completed",
+        type: "Follow-up consult",
+        fee: 49,
+        durationMinutes: APPOINTMENT_MINUTES,
+        telehealthStatus: "completed",
+      },
+      {
+        id: "APT-DEMO-MORGAN-1",
+        patientId: morgan.id,
+        date: offsetDateIso(1),
+        time: "11:00",
+        clinician: doctor2.name,
+        doctorId: doctor2.id,
+        format: "Phone consult",
+        status: "confirmed",
+        type: "Initial consult",
+        fee: 49,
+        durationMinutes: APPOINTMENT_MINUTES,
+        telehealthStatus: "scheduled",
+      },
+    ],
+    prescriptions: [
+      {
+        id: "RX-DEMO-ACTIVE",
+        patientId: jordan.id,
+        name: "Holistic sleep support — Flower",
+        form: "Dried herb · 10g",
+        repeats: 4,
+        repeatsTotal: 5,
+        status: "active",
+        intervalDays: 28,
+        prescribedAt: new Date(Date.now() - 35 * 86400000).toISOString(),
+        nextReorderAt: new Date(Date.now() - 2 * 86400000).toISOString(),
+        prescribedBy: doctor.id,
+        notes: "Evening use as discussed. Reorder is ready now for demo.",
+      },
+      {
+        id: "RX-DEMO-REORDER",
+        patientId: jordan.id,
+        name: "Calm routine — Oil",
+        form: "Oral oil · 30ml",
+        repeats: 2,
+        repeatsTotal: 5,
+        status: "reorder_requested",
+        intervalDays: 28,
+        prescribedAt: new Date(Date.now() - 60 * 86400000).toISOString(),
+        nextReorderAt: new Date(Date.now() + 26 * 86400000).toISOString(),
+        prescribedBy: doctor.id,
+        notes: "Pending pharmacy dispatch — visible in admin queue.",
+      },
+      {
+        id: "RX-DEMO-PENDING",
+        patientId: jordan.id,
+        name: "Evening calm — Capsules",
+        form: "Capsules · 30 pack",
+        repeats: 5,
+        repeatsTotal: 5,
+        status: "pending_dispense",
+        intervalDays: 28,
+        prescribedAt: null,
+        nextReorderAt: null,
+        prescribedBy: doctor.id,
+        submittedAt: new Date(Date.now() - 3600000).toISOString(),
+        notes: "Doctor submitted — awaiting admin dispense.",
+      },
+      {
+        id: "RX-DEMO-ALEX",
+        patientId: alex.id,
+        name: "Treatment plan pending review",
+        form: "As prescribed after consult",
+        repeats: 0,
+        repeatsTotal: 5,
+        status: "pending_review",
+        intervalDays: 28,
+        prescribedAt: null,
+        nextReorderAt: null,
+        prescribedBy: doctor2.id,
+        notes: "Awaiting first consult with Dr Nguyen.",
+      },
+      {
+        id: "RX-DEMO-SAM",
+        patientId: sam.id,
+        name: "Mobility support — Flower",
+        form: "Dried herb · 15g",
+        repeats: 3,
+        repeatsTotal: 5,
+        status: "active",
+        intervalDays: 28,
+        prescribedAt: new Date(Date.now() - 20 * 86400000).toISOString(),
+        nextReorderAt: new Date(Date.now() + 8 * 86400000).toISOString(),
+        prescribedBy: doctor.id,
+        erxToken: "DEMO8RX1",
+        erxScriptId: "ERX-DEMO-SAM",
+        erxStatus: "sent",
+        erxSentAt: new Date(Date.now() - 20 * 86400000).toISOString(),
+        ausscriptsUrl: "https://ausscripts.erx.com.au/?token=DEMO8RX1",
+        notes: "Electronic script sent via eRx — present token at pharmacy.",
+      },
+      {
+        id: "RX-DEMO-MORGAN",
+        patientId: morgan.id,
+        name: "Treatment plan pending review",
+        form: "As prescribed after consult",
+        repeats: 0,
+        repeatsTotal: 5,
+        status: "pending_review",
+        intervalDays: 28,
+        prescribedAt: null,
+        nextReorderAt: null,
+        prescribedBy: doctor2.id,
+        notes: "Booked with Dr Nguyen — consult tomorrow.",
+      },
+    ],
     orders: [
       {
         id: "ORD-DEMO-1",
-        patientId: patient.id,
+        patientId: jordan.id,
         items: [
           { id: "vaporiser-mini", name: "Portable dry herb vaporiser", price: 89, qty: 1 },
           { id: "storage-jar", name: "UV storage jar", price: 18, qty: 2 },
@@ -168,6 +321,7 @@ function buildInitialState() {
     sessions: {},
   };
   seedAvailability(state, doctor.id);
+  seedAvailability(state, doctor2.id);
   return state;
 }
 
@@ -292,9 +446,10 @@ export function demoApi(path, options = {}, token) {
   }
 
   if (pathname === "/api/auth/login" && method === "POST") {
-    const email = String(body.email || "").toLowerCase();
+    const email = String(body.email || "").toLowerCase().trim();
+    const password = String(body.password || "").trim();
     const account = DEMO_ACCOUNTS[email];
-    if (!account || account.password !== body.password) {
+    if (!account || account.password !== password) {
       throw new Error("Email or password not recognised.");
     }
     const user =
@@ -592,19 +747,30 @@ export function demoApi(path, options = {}, token) {
     if (!["pending_dispense", "pending_review", "reorder_requested"].includes(rx.status)) {
       throw new Error("Script is not awaiting dispense.");
     }
+    const erxToken = generateErxToken();
     rx.status = "active";
     rx.dispensedAt = new Date().toISOString();
     rx.dispensedBy = session.user.id;
+    rx.erxToken = erxToken;
+    rx.erxScriptId = `ERX-DEMO-${Date.now().toString(36).toUpperCase()}`;
+    rx.erxStatus = "sent";
+    rx.erxSentAt = rx.dispensedAt;
+    rx.ausscriptsUrl = `https://ausscripts.erx.com.au/?token=${encodeURIComponent(erxToken)}`;
     if (!rx.prescribedAt) rx.prescribedAt = rx.dispensedAt;
     if (!rx.nextReorderAt) {
       rx.nextReorderAt = new Date(Date.now() + (rx.intervalDays || 28) * 86400000).toISOString();
     }
     saveDemoState(state);
-    return { ok: true, prescription: rx, mode: "demo" };
+    return {
+      ok: true,
+      prescription: rx,
+      erx: { erxToken, erxScriptId: rx.erxScriptId, erxStatus: "sent", ausscriptsUrl: rx.ausscriptsUrl },
+      mode: "demo",
+    };
   }
 
   throw new Error(`Demo API: ${method} ${path} not implemented`);
 }
 
 export const DEMO_ACCOUNT_HINT =
-  "Running in demo mode (API offline). Use demo@crossroads.clinic / demo1234, dr.patel@crossroads.clinic / Doctor2026, or admin@crossroads.clinic / CrossroadsAdmin2026.";
+  "Running in demo mode. Patients: demo@ / alex@ / sam@ / morgan@crossroads.clinic (demo1234). Doctors: dr.patel@ / dr.nguyen@ (Doctor2026). Admin: admin@crossroads.clinic (CrossroadsAdmin2026).";

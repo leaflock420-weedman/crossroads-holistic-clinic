@@ -1,6 +1,7 @@
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
+const { sendElectronicPrescription } = require("./erx");
 
 const DATA_DIR = path.join(__dirname, "..", "data");
 const DATA_FILE = path.join(DATA_DIR, "clinic-live.json");
@@ -102,8 +103,9 @@ function clearToken(token) {
 }
 
 function login(email, password) {
-  const user = findUserByEmail(email);
-  if (!user || user.passwordHash !== hashPassword(password)) {
+  const user = findUserByEmail(String(email || "").trim());
+  const pwd = String(password || "").trim();
+  if (!user || user.passwordHash !== hashPassword(pwd)) {
     return { ok: false, error: "Email or password not recognised." };
   }
   const token = createToken(user);
@@ -215,15 +217,24 @@ function dispensePrescription(id, actorId) {
   if (!["pending_dispense", "pending_review", "reorder_requested"].includes(rx.status)) {
     return { ok: false, error: "Script is not awaiting dispense." };
   }
+  const patient = state.patients.find((p) => p.id === rx.patientId);
+  const prescriber = state.users.find((u) => u.id === (rx.prescribedBy || actorId));
+  const erx = sendElectronicPrescription(rx, patient, prescriber);
+
   rx.status = "active";
   rx.dispensedAt = new Date().toISOString();
   rx.dispensedBy = actorId;
+  rx.erxToken = erx.erxToken;
+  rx.erxScriptId = erx.erxScriptId;
+  rx.erxStatus = erx.erxStatus;
+  rx.erxSentAt = erx.erxSentAt;
+  rx.ausscriptsUrl = erx.ausscriptsUrl;
   if (!rx.prescribedAt) rx.prescribedAt = rx.dispensedAt;
   if (!rx.nextReorderAt) {
     rx.nextReorderAt = new Date(Date.now() + (rx.intervalDays || 28) * 86400000).toISOString();
   }
   persist();
-  return { ok: true, prescription: rx };
+  return { ok: true, prescription: rx, erx };
 }
 
 function createPrescription(patientId, data, actorId) {
@@ -514,140 +525,234 @@ function seedDoctorAvailability(doctorId) {
   }
 }
 
-function ensureDemoPatient(doctor) {
-  const demoEmail = "demo@crossroads.clinic";
-  const today = new Date();
-  const todayIso = today.toISOString().slice(0, 10);
-  const followUp = new Date(today);
-  followUp.setDate(followUp.getDate() + 14);
-  const followUpIso = followUp.toISOString().slice(0, 10);
-
-  let patient = state.patients.find((p) => p.email === demoEmail);
+function upsertDemoPatient(profile, doctor) {
+  const email = profile.email.toLowerCase();
+  let patient = state.patients.find((p) => p.email === email);
+  const base = {
+    role: "patient",
+    name: profile.name,
+    email,
+    phone: profile.phone,
+    state: profile.state,
+    support: profile.support,
+    passwordHash: hashPassword(profile.password || "demo1234"),
+    paid: true,
+    paidAt: new Date(Date.now() - 28 * 86400000).toISOString(),
+    stage: "Portal active",
+    assignedDoctorId: doctor.id,
+  };
   if (!patient) {
-    patient = {
-      id: uid("PT"),
-      role: "patient",
-      createdAt: new Date(Date.now() - 30 * 86400000).toISOString(),
-      name: "Jordan Mitchell",
-      email: demoEmail,
-      phone: "0412 345 678",
-      state: "NSW",
-      support: "Sleep and evening routine support",
-      passwordHash: hashPassword("demo1234"),
-      paid: true,
-      paidAt: new Date(Date.now() - 28 * 86400000).toISOString(),
-      stage: "Portal active",
-      assignedDoctorId: doctor.id,
-    };
+    patient = { id: uid("PT"), createdAt: new Date(Date.now() - 30 * 86400000).toISOString(), ...base };
     state.patients.push(patient);
   } else {
-    Object.assign(patient, {
-      name: "Jordan Mitchell",
-      phone: "0412 345 678",
-      state: "NSW",
-      support: "Sleep and evening routine support",
-      passwordHash: hashPassword("demo1234"),
-      paid: true,
-      stage: "Portal active",
-      assignedDoctorId: doctor.id,
-    });
+    Object.assign(patient, base);
   }
 
   state.appointments = state.appointments.filter((a) => a.patientId !== patient.id);
   state.prescriptions = state.prescriptions.filter((r) => r.patientId !== patient.id);
   state.orders = state.orders.filter((o) => o.patientId !== patient.id);
 
-  state.appointments.push(
-    {
+  const today = new Date().toISOString().slice(0, 10);
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const tomorrowIso = tomorrow.toISOString().slice(0, 10);
+  const followUp = new Date();
+  followUp.setDate(followUp.getDate() + 14);
+  const followUpIso = followUp.toISOString().slice(0, 10);
+
+  for (const apt of profile.appointments || []) {
+    state.appointments.push({
       id: uid("APT"),
       patientId: patient.id,
-      date: todayIso,
-      time: "14:30",
+      doctorId: doctor.id,
       clinician: doctor.name,
       format: "Phone consult",
       status: "confirmed",
-      type: "Follow-up consult",
-      fee: CONSULT_FEE,
-      doctorId: doctor.id,
-      durationMinutes: APPOINTMENT_MINUTES,
-      telehealthStatus: "scheduled",
-    },
-    {
-      id: uid("APT"),
-      patientId: patient.id,
-      date: followUpIso,
-      time: "10:00",
-      clinician: doctor.name,
-      doctorId: doctor.id,
-      format: "Phone consult",
-      status: "confirmed",
-      type: "Interval check-in",
       fee: CONSULT_FEE,
       durationMinutes: APPOINTMENT_MINUTES,
       telehealthStatus: "scheduled",
-    }
-  );
+      ...apt,
+    });
+  }
 
-  const prescribedAt = new Date(Date.now() - 35 * 86400000).toISOString();
-  state.prescriptions.push(
-    {
+  for (const rx of profile.prescriptions || []) {
+    state.prescriptions.push({
       id: uid("RX"),
       patientId: patient.id,
-      name: "Holistic sleep support — Flower",
-      form: "Dried herb · 10g",
-      repeats: 4,
-      repeatsTotal: 5,
-      status: "active",
-      intervalDays: 28,
-      prescribedAt,
-      nextReorderAt: new Date(Date.now() - 2 * 86400000).toISOString(),
       prescribedBy: doctor.id,
-      notes: "Evening use as discussed. Reorder is ready now for demo.",
-    },
-    {
-      id: uid("RX"),
-      patientId: patient.id,
-      name: "Calm routine — Oil",
-      form: "Oral oil · 30ml",
-      repeats: 2,
-      repeatsTotal: 5,
-      status: "reorder_requested",
       intervalDays: 28,
-      prescribedAt: new Date(Date.now() - 60 * 86400000).toISOString(),
-      nextReorderAt: new Date(Date.now() + 26 * 86400000).toISOString(),
-      prescribedBy: doctor.id,
-      notes: "Pending pharmacy dispatch — visible in admin queue.",
-    },
-    {
-      id: uid("RX"),
-      patientId: patient.id,
-      name: "Evening calm — Capsules",
-      form: "Capsules · 30 pack",
-      repeats: 5,
-      repeatsTotal: 5,
-      status: "pending_dispense",
-      intervalDays: 28,
-      prescribedAt: null,
-      nextReorderAt: null,
-      prescribedBy: doctor.id,
-      submittedAt: new Date(Date.now() - 3600000).toISOString(),
-      notes: "Doctor submitted — awaiting admin dispense.",
-    }
-  );
+      ...rx,
+    });
+  }
 
-  state.orders.push({
-    id: uid("ORD"),
-    patientId: patient.id,
-    items: [
-      { id: "vaporiser-mini", name: "Portable dry herb vaporiser", price: 89, qty: 1 },
-      { id: "storage-jar", name: "UV storage jar", price: 18, qty: 2 },
-    ],
-    total: 125,
-    status: "processing",
-    createdAt: new Date(Date.now() - 3 * 86400000).toISOString(),
-  });
+  if (profile.order) {
+    state.orders.push({ id: uid("ORD"), patientId: patient.id, ...profile.order });
+  }
 
   return patient;
+}
+
+function ensureDemoPatients(doctors) {
+  const patel = doctors.patel;
+  const nguyen = doctors.nguyen;
+
+  upsertDemoPatient(
+    {
+      email: "demo@crossroads.clinic",
+      name: "Jordan Mitchell",
+      phone: "0412 345 678",
+      state: "NSW",
+      support: "Sleep and evening routine support",
+      appointments: [
+        { date: new Date().toISOString().slice(0, 10), time: "14:30", type: "Follow-up consult", telehealthStatus: "scheduled" },
+        { date: followUpIsoFromNow(14), time: "10:00", type: "Interval check-in", telehealthStatus: "scheduled" },
+      ],
+      prescriptions: [
+        {
+          name: "Holistic sleep support — Flower",
+          form: "Dried herb · 10g",
+          repeats: 4,
+          repeatsTotal: 5,
+          status: "active",
+          prescribedAt: new Date(Date.now() - 35 * 86400000).toISOString(),
+          nextReorderAt: new Date(Date.now() - 2 * 86400000).toISOString(),
+          notes: "Evening use as discussed. Reorder is ready now for demo.",
+        },
+        {
+          name: "Calm routine — Oil",
+          form: "Oral oil · 30ml",
+          repeats: 2,
+          repeatsTotal: 5,
+          status: "reorder_requested",
+          prescribedAt: new Date(Date.now() - 60 * 86400000).toISOString(),
+          nextReorderAt: new Date(Date.now() + 26 * 86400000).toISOString(),
+          notes: "Pending pharmacy dispatch — visible in admin queue.",
+        },
+        {
+          name: "Evening calm — Capsules",
+          form: "Capsules · 30 pack",
+          repeats: 5,
+          repeatsTotal: 5,
+          status: "pending_dispense",
+          prescribedAt: null,
+          nextReorderAt: null,
+          submittedAt: new Date(Date.now() - 3600000).toISOString(),
+          notes: "Doctor submitted — awaiting admin dispense.",
+        },
+      ],
+      order: {
+        items: [
+          { id: "vaporiser-mini", name: "Portable dry herb vaporiser", price: 89, qty: 1 },
+          { id: "storage-jar", name: "UV storage jar", price: 18, qty: 2 },
+        ],
+        total: 125,
+        status: "processing",
+        createdAt: new Date(Date.now() - 3 * 86400000).toISOString(),
+      },
+    },
+    patel
+  );
+
+  upsertDemoPatient(
+    {
+      email: "alex@crossroads.clinic",
+      name: "Alex Taylor",
+      phone: "0423 111 222",
+      state: "VIC",
+      support: "Daytime focus and routine",
+      appointments: [
+        { date: new Date().toISOString().slice(0, 10), time: "10:15", type: "Initial consult", telehealthStatus: "scheduled" },
+      ],
+      prescriptions: [
+        {
+          name: "Treatment plan pending review",
+          form: "As prescribed after consult",
+          repeats: 0,
+          repeatsTotal: 5,
+          status: "pending_review",
+          prescribedAt: null,
+          nextReorderAt: null,
+          notes: "Awaiting first consult with Dr Nguyen.",
+        },
+      ],
+    },
+    nguyen
+  );
+
+  upsertDemoPatient(
+    {
+      email: "sam@crossroads.clinic",
+      name: "Sam Rivera",
+      phone: "0434 555 666",
+      state: "QLD",
+      support: "Pain and mobility support",
+      appointments: [
+        {
+          date: new Date().toISOString().slice(0, 10),
+          time: "09:00",
+          type: "Follow-up consult",
+          telehealthStatus: "completed",
+          status: "completed",
+        },
+      ],
+      prescriptions: [
+        {
+          name: "Mobility support — Flower",
+          form: "Dried herb · 15g",
+          repeats: 3,
+          repeatsTotal: 5,
+          status: "active",
+          prescribedAt: new Date(Date.now() - 20 * 86400000).toISOString(),
+          nextReorderAt: new Date(Date.now() + 8 * 86400000).toISOString(),
+          erxToken: "DEMO8RX1",
+          erxScriptId: "ERX-DEMO-SAM",
+          erxStatus: "sent",
+          erxSentAt: new Date(Date.now() - 20 * 86400000).toISOString(),
+          ausscriptsUrl: "https://ausscripts.erx.com.au/?token=DEMO8RX1",
+          notes: "Electronic script sent via eRx — present token at pharmacy.",
+        },
+      ],
+    },
+    patel
+  );
+
+  upsertDemoPatient(
+    {
+      email: "morgan@crossroads.clinic",
+      name: "Morgan Lee",
+      phone: "0445 777 888",
+      state: "WA",
+      support: "Anxiety and sleep balance",
+      appointments: [
+        { date: tomorrowIsoFromNow(), time: "11:00", type: "Initial consult", telehealthStatus: "scheduled" },
+      ],
+      prescriptions: [
+        {
+          name: "Treatment plan pending review",
+          form: "As prescribed after consult",
+          repeats: 0,
+          repeatsTotal: 5,
+          status: "pending_review",
+          prescribedAt: null,
+          nextReorderAt: null,
+          notes: "Booked with Dr Nguyen — consult tomorrow.",
+        },
+      ],
+    },
+    nguyen
+  );
+}
+
+function followUpIsoFromNow(days) {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+function tomorrowIsoFromNow() {
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  return d.toISOString().slice(0, 10);
 }
 
 function ensureDemoAccounts() {
@@ -670,7 +775,7 @@ function ensureDemoAccounts() {
     password: doctorPassword,
   });
 
-  upsertStaffUser({
+  const doctorNguyen = upsertStaffUser({
     role: "doctor",
     name: "Dr Nguyen",
     email: "dr.nguyen@crossroads.clinic",
@@ -678,14 +783,15 @@ function ensureDemoAccounts() {
     password: doctorPassword,
   });
 
-  ensureDemoPatient(doctor);
+  ensureDemoPatients({ patel: doctor, nguyen: doctorNguyen });
   seedDoctorAvailability(doctor.id);
+  seedDoctorAvailability(doctorNguyen.id);
   persist();
 
   console.log("Demo accounts ready:");
-  console.log("  Patient: demo@crossroads.clinic / demo1234");
-  console.log("  Doctor:  dr.patel@crossroads.clinic");
-  console.log("  Admin:   admin@crossroads.clinic");
+  console.log("  Patients: demo@ / alex@ / sam@ / morgan@crossroads.clinic — password demo1234");
+  console.log("  Doctors:  dr.patel@ / dr.nguyen@crossroads.clinic — password Doctor2026");
+  console.log("  Admin:    admin@crossroads.clinic");
 }
 
 ensureDemoAccounts();
