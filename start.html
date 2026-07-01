@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Book your Crossroads Holistic Clinic initial consult — pre-screen, book a time, and pay $49 to access your patient portal." />
+    <meta name="theme-color" content="#050805" />
+    <title>Book consult · Crossroads Holistic Clinic</title>
+    <link rel="icon" href="/crossroads-mark.png" type="image/png" />
+    <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="/portal.css" />
+  </head>
+  <body class="flow-page">
+    <header class="site-header">
+      <a class="brand" href="/" aria-label="Crossroads home">
+        <img class="brand-mark crossroads-logo" src="/crossroads-mark-transparent.png" alt="" width="44" height="44" />
+        <img class="brand-wordmark crossroads-logo" src="/crossroads-wordmark-transparent.png" alt="Crossroads Holistic Clinic" height="36" />
+      </a>
+      <nav class="site-nav flow-nav">
+        <a href="/">Home</a>
+        <a href="/portal.html">Patient login</a>
+      </nav>
+    </header>
+
+    <main class="flow-shell">
+      <div class="flow-progress" aria-label="Booking progress">
+        <div class="flow-progress__track">
+          <span class="flow-progress__fill" data-progress-fill></span>
+        </div>
+        <ol class="flow-progress__steps" data-progress-steps>
+          <li class="active">Pre-screen</li>
+          <li>Your details</li>
+          <li>Book time</li>
+          <li>Pay $49</li>
+          <li>Portal ready</li>
+        </ol>
+      </div>
+
+      <div class="flow-card" data-flow-card>
+        <!-- Step 0: Pre-screen -->
+        <section class="flow-step is-active" data-flow-step="0">
+          <p class="eyebrow">Step 1 of 5</p>
+          <h1>Quick pre-screen</h1>
+          <p class="flow-lead">Before booking, confirm you meet these criteria — like easykind and other Australian telehealth clinics.</p>
+          <form class="flow-form" data-prescreen-form>
+            <label class="check-row flow-check">
+              <input type="checkbox" name="age" required />
+              <span>I am 18 years or older.</span>
+            </label>
+            <label class="check-row flow-check">
+              <input type="checkbox" name="pregnancy" required />
+              <span>I am not pregnant, breastfeeding, or trying to conceive.</span>
+            </label>
+            <label class="check-row flow-check">
+              <input type="checkbox" name="psychosis" required />
+              <span>I do not have a history of schizophrenia, bipolar disorder, or psychosis.</span>
+            </label>
+            <label class="check-row flow-check">
+              <input type="checkbox" name="accurate" required />
+              <span>I confirm this information is true and accurate to the best of my knowledge.</span>
+            </label>
+            <div class="flow-actions">
+              <button class="button primary full" type="submit">Continue</button>
+            </div>
+          </form>
+        </section>
+
+        <!-- Step 1: Details -->
+        <section class="flow-step" data-flow-step="1" hidden>
+          <p class="eyebrow">Step 2 of 5</p>
+          <h1>Your details</h1>
+          <p class="flow-lead">We'll send consult reminders and your portal login to this email.</p>
+          <form class="flow-form" data-details-form>
+            <div class="field-grid">
+              <label>First name <input name="firstName" autocomplete="given-name" required placeholder="Jane" /></label>
+              <label>Last name <input name="lastName" autocomplete="family-name" required placeholder="Smith" /></label>
+            </div>
+            <label>Email <input type="email" name="email" autocomplete="email" required placeholder="you@email.com" /></label>
+            <label>Mobile <input name="phone" autocomplete="tel" inputmode="tel" placeholder="04xx xxx xxx" /></label>
+            <div class="field-grid compact-grid">
+              <label>
+                State
+                <select name="state" required>
+                  <option value="">Choose</option>
+                  <option>ACT</option><option>NSW</option><option>NT</option><option>QLD</option>
+                  <option>SA</option><option>TAS</option><option>VIC</option><option>WA</option>
+                </select>
+              </label>
+              <label>
+                Support area
+                <select name="support" required>
+                  <option value="">Choose</option>
+                  <option>Sleep or routine support</option>
+                  <option>Pain or daily comfort support</option>
+                  <option>Stress or mood support</option>
+                  <option>Not sure yet</option>
+                </select>
+              </label>
+            </div>
+            <label class="check-row flow-check">
+              <input type="checkbox" name="consent" required />
+              <span>I consent to Crossroads collecting my details for booking and patient portal access. This is not emergency care.</span>
+            </label>
+            <div class="flow-actions split-actions">
+              <button class="button ghost" type="button" data-flow-back>Back</button>
+              <button class="button primary" type="submit">Continue</button>
+            </div>
+          </form>
+        </section>
+
+        <!-- Step 2: Book -->
+        <section class="flow-step" data-flow-step="2" hidden>
+          <p class="eyebrow">Step 3 of 5</p>
+          <h1>Book your consult</h1>
+          <p class="flow-lead">Pick a time for your $49 initial telehealth consult. 30 minutes · video or phone.</p>
+          <form class="flow-form" data-booking-form>
+            <label>
+              Date
+              <select name="date" required data-date-select></select>
+            </label>
+            <fieldset class="slot-picker">
+              <legend>Available times (AEST)</legend>
+              <div class="slot-grid" data-slot-grid></div>
+            </fieldset>
+            <label>
+              Clinician preference
+              <select name="clinician">
+                <option value="">First available</option>
+              </select>
+            </label>
+            <div class="flow-summary" data-booking-preview hidden>
+              <strong>Selected:</strong> <span data-booking-preview-text></span>
+            </div>
+            <div class="flow-actions split-actions">
+              <button class="button ghost" type="button" data-flow-back>Back</button>
+              <button class="button primary" type="submit">Continue to payment</button>
+            </div>
+          </form>
+        </section>
+
+        <!-- Step 3: Pay -->
+        <section class="flow-step" data-flow-step="3" hidden>
+          <p class="eyebrow">Step 4 of 5</p>
+          <h1>Pay consult fee</h1>
+          <p class="flow-lead">$49 initial consult — includes portal access after payment. Medication costs are separate and shown only if clinically appropriate.</p>
+          <div class="pay-box">
+            <div class="pay-line"><span>Initial consult</span><strong>$49.00 AUD</strong></div>
+            <div class="pay-line muted"><span>Patient portal access</span><span>Included</span></div>
+            <div class="pay-line total"><span>Total due today</span><strong>$49.00 AUD</strong></div>
+          </div>
+          <form class="flow-form" data-payment-form>
+            <label>Name on card <input name="cardName" autocomplete="cc-name" required placeholder="Jane Smith" /></label>
+            <label>Card number <input name="cardNumber" inputmode="numeric" required placeholder="4242 4242 4242 4242" maxlength="19" /></label>
+            <div class="field-grid">
+              <label>Expiry <input name="cardExpiry" placeholder="MM/YY" required maxlength="5" /></label>
+              <label>CVC <input name="cardCvc" inputmode="numeric" required placeholder="123" maxlength="4" /></label>
+            </div>
+            <p class="form-note">Demo payment — no real charge. In production this connects to Stripe or Square.</p>
+            <div class="flow-actions split-actions">
+              <button class="button ghost" type="button" data-flow-back>Back</button>
+              <button class="button primary" type="submit" data-pay-btn>Pay $49 &amp; create portal</button>
+            </div>
+          </form>
+        </section>
+
+        <!-- Step 4: Success -->
+        <section class="flow-step" data-flow-step="4" hidden>
+          <div class="success-panel">
+            <div class="success-icon" aria-hidden="true">✓</div>
+            <p class="eyebrow">Step 5 of 5</p>
+            <h1>Your patient portal is ready</h1>
+            <p class="flow-lead">Booking confirmed. Log in anytime to view appointments, scripts when approved, and reorder when your interval is ready.</p>
+            <dl class="portal-credentials" data-credentials></dl>
+            <div class="flow-actions">
+              <a class="button primary full" href="/portal.html" data-portal-link>Go to patient portal</a>
+              <a class="button ghost full" href="/">Back to home</a>
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+
+    <script type="module" src="/start.js"></script>
+  </body>
+</html>

@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Crossroads patient portal — view scripts, reorder when ready, book follow-ups, and shop complementary products." />
+    <meta name="theme-color" content="#050805" />
+    <title>Patient portal · Crossroads Holistic Clinic</title>
+    <link rel="icon" href="/crossroads-mark.png" type="image/png" />
+    <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="/portal.css" />
+  </head>
+  <body class="portal-page">
+    <!-- Login -->
+    <div class="portal-login" data-login-view>
+      <div class="portal-login__card">
+        <a class="brand portal-login__brand" href="/">
+          <img class="brand-mark crossroads-logo" src="/crossroads-mark-transparent.png" alt="" width="48" height="48" />
+          <img class="brand-wordmark crossroads-logo" src="/crossroads-wordmark-transparent.png" alt="Crossroads" height="32" />
+        </a>
+        <h1>Patient portal</h1>
+        <p class="flow-lead">View your scripts, reorder when your interval is ready, and manage appointments.</p>
+        <form class="flow-form" data-login-form>
+          <label>Email <input type="email" name="email" autocomplete="username" required placeholder="you@email.com" /></label>
+          <label>Password <input type="password" name="password" autocomplete="current-password" required placeholder="Your portal password" /></label>
+          <p class="form-error" data-login-error hidden></p>
+          <button class="button primary full" type="submit">Sign in</button>
+        </form>
+        <p class="portal-login__hint">
+          New patient? <a href="/start.html">Book consult ($49)</a>
+        </p>
+        <details class="demo-hint">
+          <summary>Demo login</summary>
+          <p>Email: <code>demo@crossroads.clinic</code><br />Password: <code>demo1234</code></p>
+        </details>
+      </div>
+    </div>
+
+    <!-- Dashboard -->
+    <div class="portal-app" data-app-view hidden>
+      <aside class="portal-sidebar">
+        <a class="brand portal-sidebar__brand" href="/">
+          <img class="brand-mark crossroads-logo" src="/crossroads-mark-transparent.png" alt="" width="40" height="40" />
+          <span>Crossroads</span>
+        </a>
+        <p class="portal-sidebar__user" data-sidebar-name></p>
+        <nav class="portal-nav" data-portal-nav>
+          <button type="button" class="active" data-view="overview">Overview</button>
+          <button type="button" data-view="scripts">My scripts</button>
+          <button type="button" data-view="appointments">Appointments</button>
+          <button type="button" data-view="products">Products</button>
+          <button type="button" data-view="profile">Profile</button>
+        </nav>
+        <button type="button" class="portal-logout" data-logout>Sign out</button>
+      </aside>
+
+      <div class="portal-main">
+        <header class="portal-top">
+          <div>
+            <p class="eyebrow" data-page-eyebrow>Patient portal</p>
+            <h1 data-page-title>Overview</h1>
+          </div>
+          <a class="button ghost" href="/start.html">Book return consult</a>
+        </header>
+
+        <!-- Overview -->
+        <section class="portal-view is-active" data-portal-view="overview">
+          <div class="stat-grid" data-overview-stats></div>
+          <div class="portal-grid">
+            <article class="portal-card" data-next-appointment></article>
+            <article class="portal-card" data-script-summary></article>
+          </div>
+        </section>
+
+        <!-- Scripts -->
+        <section class="portal-view" data-portal-view="scripts" hidden>
+          <p class="view-intro">Active prescriptions and reorder intervals — similar to Trichome / easykind patient portals.</p>
+          <div class="script-list" data-script-list></div>
+        </section>
+
+        <!-- Appointments -->
+        <section class="portal-view" data-portal-view="appointments" hidden>
+          <div class="appointment-list" data-appointment-list></div>
+        </section>
+
+        <!-- Products -->
+        <section class="portal-view" data-portal-view="products" hidden>
+          <p class="view-intro">Complementary accessories and wellness products — separate from prescribed medication.</p>
+          <div class="product-grid" data-product-grid></div>
+          <aside class="cart-panel" data-cart-panel hidden>
+            <h3>Your cart</h3>
+            <div data-cart-items></div>
+            <div class="cart-total" data-cart-total></div>
+            <button type="button" class="button primary full" data-checkout-products>Place order</button>
+          </aside>
+        </section>
+
+        <!-- Profile -->
+        <section class="portal-view" data-portal-view="profile" hidden>
+          <dl class="profile-list" data-profile-list></dl>
+        </section>
+      </div>
+    </div>
+
+    <script type="module" src="/portal.js"></script>
+  </body>
+</html>

@@ -3,11 +3,20 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "dev": "vite --host 0.0.0.0",
+    "dev": "vite",
+    "server": "node server/index.js",
     "build": "vite build",
-    "preview": "vite preview --host 0.0.0.0"
+    "start": "node server/index.js",
+    "preview": "npm run build && npm start"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2"
   },
   "devDependencies": {
     "vite": "^8.1.0"
+  },
+  "engines": {
+    "node": ">=18"
   }
 }
