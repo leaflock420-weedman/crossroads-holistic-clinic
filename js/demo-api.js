@@ -1,6 +1,7 @@
 import { generateTimeSlots, APPOINTMENT_MINUTES, NEW_PATIENT_MINUTES } from "./data.js";
+import { notifyClinicUpdate } from "./sync.js";
 
-const DEMO_STATE_KEY = "crossroads-demo-state-v4";
+const DEMO_STATE_KEY = "crossroads-demo-state-v5";
 
 const DEMO_ACCOUNTS = {
   "demo@crossroads.clinic": { password: "demo1234", role: "patient" },
@@ -343,6 +344,7 @@ function loadDemoState() {
 
 function saveDemoState(state) {
   sessionStorage.setItem(DEMO_STATE_KEY, JSON.stringify(state));
+  notifyClinicUpdate();
 }
 
 function patientName(state, id) {
@@ -655,6 +657,8 @@ export function demoApi(path, options = {}, token) {
     if (session.role === "doctor") {
       patch.status = "pending_dispense";
       patch.submittedAt = new Date().toISOString();
+      if (patch.intervalDays !== undefined) patch.intervalDays = Math.max(1, Number(patch.intervalDays));
+      if (patch.supplyDays !== undefined) patch.supplyDays = Number(patch.supplyDays);
     }
     Object.assign(rx, patch, { prescribedBy: session.user.id });
     saveDemoState(state);
@@ -663,7 +667,12 @@ export function demoApi(path, options = {}, token) {
 
   if (pathname === "/api/prescriptions" && method === "POST") {
     let status = body.status || "pending_dispense";
-    if (session.role === "doctor" && status === "active") status = "pending_dispense";
+    if (session.role === "doctor") status = "pending_dispense";
+    const hasActive = state.prescriptions.some(
+      (r) => r.patientId === body.patientId && r.status === "active"
+    );
+    const supplyDays = Number(body.supplyDays ?? (hasActive ? 60 : 30));
+    const intervalDays = Math.max(1, Number(body.intervalDays ?? supplyDays));
     const rx = {
       id: uid("RX"),
       patientId: body.patientId,
@@ -672,8 +681,9 @@ export function demoApi(path, options = {}, token) {
       repeats: Number(body.repeats ?? 5),
       repeatsTotal: Number(body.repeatsTotal ?? 5),
       status,
-      intervalDays: Number(body.intervalDays ?? 28),
-      nextReorderAt: status === "active" ? new Date(Date.now() + Number(body.intervalDays ?? 28) * 86400000).toISOString() : null,
+      supplyDays,
+      intervalDays,
+      nextReorderAt: status === "active" ? new Date(Date.now() + intervalDays * 86400000).toISOString() : null,
       prescribedAt: status === "active" ? new Date().toISOString() : null,
       prescribedBy: session.user.id,
       submittedAt: new Date().toISOString(),
@@ -682,6 +692,40 @@ export function demoApi(path, options = {}, token) {
     state.prescriptions.push(rx);
     saveDemoState(state);
     return { ok: true, prescription: rx, mode: "demo" };
+  }
+
+  if (pathname === "/api/patient/appointments" && method === "POST") {
+    const patient = state.patients[session.user.id];
+    if (!patient) throw new Error("Patient not found");
+    const doctor = state.users[patient.assignedDoctorId];
+    const isNew = body.patientType === "new";
+    state.appointments.push({
+      id: uid("APT"),
+      patientId: patient.id,
+      date: body.date,
+      time: body.time,
+      doctorId: doctor?.id,
+      clinician: doctor?.name || "Your clinician",
+      patientType: isNew ? "new" : "existing",
+      durationMinutes: isNew ? NEW_PATIENT_MINUTES : APPOINTMENT_MINUTES,
+      type: body.type || "Follow-up consult",
+      format: "Phone consult",
+      status: "confirmed",
+      fee: 49,
+      telehealthStatus: "scheduled",
+    });
+    saveDemoState(state);
+    return { ok: true, mode: "demo" };
+  }
+
+  if (pathname === "/api/patient/profile" && method === "PUT") {
+    const patient = state.patients[session.user.id];
+    if (!patient) throw new Error("Patient not found");
+    ["addressLine1", "addressLine2", "suburb", "postcode", "phone", "support"].forEach((k) => {
+      if (body[k] !== undefined) patient[k] = body[k];
+    });
+    saveDemoState(state);
+    return { ok: true, patient, mode: "demo" };
   }
 
   if (pathname === "/api/telehealth/start" && method === "POST") {
@@ -876,7 +920,11 @@ export function demoApi(path, options = {}, token) {
     return { ok: true, patient, mode: "demo" };
   }
 
-  if (pathname.startsWith("/api/admin/prescriptions/") && pathname.endsWith("/dispense") && method === "POST") {
+  if (
+    pathname.startsWith("/api/admin/prescriptions/") &&
+    (pathname.endsWith("/dispense") || pathname.endsWith("/approve")) &&
+    method === "POST"
+  ) {
     const id = pathname.split("/")[4];
     const rx = state.prescriptions.find((r) => r.id === id);
     if (!rx) throw new Error("Prescription not found");
@@ -891,7 +939,7 @@ export function demoApi(path, options = {}, token) {
     rx.erxScriptId = `ERX-DEMO-${Date.now().toString(36).toUpperCase()}`;
     rx.erxStatus = "sent";
     rx.erxSentAt = rx.dispensedAt;
-    rx.ausscriptsUrl = `https://ausscripts.erx.com.au/?token=${encodeURIComponent(erxToken)}`;
+    rx.ausscriptsUrl = `https://ausscripts.erx.com.au/scripts/${erxToken}`;
     if (!rx.prescribedAt) rx.prescribedAt = rx.dispensedAt;
     if (!rx.nextReorderAt) {
       rx.nextReorderAt = new Date(Date.now() + (rx.intervalDays || 28) * 86400000).toISOString();

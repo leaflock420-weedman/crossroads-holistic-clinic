@@ -1,4 +1,5 @@
 import { api, setToken, getToken, configureAuth, clearOtherPortalTokens } from "./js/api.js";
+import { onClinicUpdate, startPolling } from "./js/sync.js";
 
 configureAuth("admin");
 
@@ -10,11 +11,14 @@ const addPatientForm = document.querySelector("[data-add-patient-form]");
 const addPatientResult = document.querySelector("[data-add-patient-result]");
 const doctorSelects = () => document.querySelectorAll("[data-doctor-select]");
 
-const TITLES = { dispense: "Dispense queue", patients: "Patients", appointments: "Appointments" };
+const TITLES = { dispense: "Approve queue", patients: "Patients", appointments: "Appointments" };
 
 let overview = null;
+let stopPolling = null;
+let activeView = "dispense";
 
 function showLogin() {
+  stopPolling?.();
   setToken(null);
   loginView.hidden = false;
   appView.hidden = true;
@@ -23,9 +27,13 @@ function showLogin() {
 function showApp() {
   loginView.hidden = true;
   appView.hidden = false;
+  stopPolling?.();
+  stopPolling = startPolling(() => loadOverview(), 2500);
+  onClinicUpdate(() => loadOverview());
 }
 
 function setView(name) {
+  activeView = name;
   document.querySelectorAll("[data-admin-view]").forEach((v) => {
     const on = v.dataset.adminView === name;
     v.classList.toggle("is-active", on);
@@ -51,9 +59,15 @@ function doctorOptions(selectedId = "") {
     .join("");
 }
 
+function formatSubmitted(rx) {
+  if (!rx.submittedAt) return "";
+  const mins = Math.max(0, Math.round((Date.now() - new Date(rx.submittedAt).getTime()) / 60000));
+  return mins < 1 ? "Just now" : `${mins} min ago`;
+}
+
 async function loadOverview() {
   overview = await api("/api/admin/overview");
-  renderDispense();
+  renderApproveQueue();
   renderPatients();
   renderAppointments();
   doctorSelects().forEach((sel) => {
@@ -62,45 +76,72 @@ async function loadOverview() {
   });
 }
 
-function renderDispense() {
+function renderApproveQueue() {
   const s = overview.stats;
   document.querySelector("[data-admin-stats]").innerHTML = `
-    <article class="stat"><strong>${s.pendingDispense || 0}</strong><span>Awaiting dispense</span></article>
+    <article class="stat"><strong>${s.pendingDispense || 0}</strong><span>Awaiting approval</span></article>
     <article class="stat"><strong>${s.reorderRequests}</strong><span>Reorder requests</span></article>
+    <article class="stat"><strong>${s.changeRequests || 0}</strong><span>Change requests</span></article>
     <article class="stat"><strong>${s.patients}</strong><span>Patients</span></article>
-    <article class="stat"><strong>${s.appointments}</strong><span>Appointments</span></article>
   `;
 
-  const pending = overview.prescriptions.filter((r) => r.status === "pending_dispense" || r.status === "pending_review");
+  const pending = overview.prescriptions
+    .filter((r) => r.status === "pending_dispense")
+    .sort((a, b) => new Date(b.submittedAt || 0) - new Date(a.submittedAt || 0));
+
   document.querySelector("[data-dispense-list]").innerHTML = pending.length
-    ? pending.map((r) => `
-        <article class="queue-card">
+    ? pending
+        .map(
+          (r) => `
+        <article class="queue-card queue-card--fresh">
           <div>
             <strong>${r.name}</strong>
             <p>${patientName(r.patientId)} · ${r.form}</p>
-            <p class="queue-phone">${r.status === "pending_review" ? "Awaiting consult" : "Doctor submitted — ready to release"}</p>
+            <p class="queue-phone">Doctor submitted ${formatSubmitted(r)} · ${r.supplyDays || 30}-day supply · interval ${r.intervalDays || 30}d</p>
           </div>
-          <button class="button primary" type="button" data-dispense-rx="${r.id}">Dispense &amp; send via eRx</button>
+          <button class="button primary" type="button" data-approve-rx="${r.id}">Approve &amp; send eRx</button>
         </article>
-      `).join("")
-    : `<p class="empty-state">No scripts awaiting dispense.</p>`;
+      `
+        )
+        .join("")
+    : `<p class="empty-state">No scripts awaiting approval. Doctor submissions appear here instantly.</p>`;
+
+  const awaitingConsult = overview.prescriptions.filter((r) => r.status === "pending_review");
+  if (awaitingConsult.length) {
+    document.querySelector("[data-dispense-list]").innerHTML += `
+      <h4>Awaiting consult</h4>
+      ${awaitingConsult
+        .map(
+          (r) => `
+        <article class="queue-card">
+          <div><strong>${r.name}</strong><p>${patientName(r.patientId)} — placeholder until consult</p></div>
+        </article>`
+        )
+        .join("")}
+    `;
+  }
 
   const reorders = overview.prescriptions.filter((r) => r.status === "reorder_requested");
   document.querySelector("[data-reorder-list]").innerHTML = reorders.length
-    ? reorders.map((r) => `
+    ? reorders
+        .map(
+          (r) => `
         <article class="queue-card">
           <div><strong>${r.name}</strong><p>${patientName(r.patientId)} · ${r.form}</p></div>
-          <button class="button primary" type="button" data-dispense-rx="${r.id}">Approve reorder &amp; send via eRx</button>
+          <button class="button primary" type="button" data-approve-rx="${r.id}">Approve reorder &amp; send eRx</button>
         </article>
-      `).join("")
+      `
+        )
+        .join("")
     : `<p class="empty-state">No pending reorder requests.</p>`;
 
-  document.querySelectorAll("[data-dispense-rx]").forEach((btn) => {
+  document.querySelectorAll("[data-approve-rx]").forEach((btn) => {
     btn.addEventListener("click", async () => {
-      const res = await api(`/api/admin/prescriptions/${btn.dataset.dispenseRx}/dispense`, { method: "POST" });
-      if (res.erx?.erxToken) {
-        alert(`Dispensed and sent via eRx.\n\nPatient token: ${res.erx.erxToken}\nThey can also order at ausscripts.erx.com.au`);
-      }
+      const res = await api(`/api/admin/prescriptions/${btn.dataset.approveRx}/approve`, { method: "POST" });
+      const url = res.erx?.ausscriptsUrl || res.prescription?.ausscriptsUrl;
+      alert(
+        `Approved and sent via eRx.\n\nPatient link:\n${url || res.erx?.erxToken || "check portal"}`
+      );
       await loadOverview();
     });
   });
@@ -112,7 +153,9 @@ function renderPatients() {
     <table class="admin-table">
       <thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>Assigned doctor</th><th>Stage</th><th></th></tr></thead>
       <tbody>
-        ${overview.patients.map((p) => `
+        ${overview.patients
+          .map(
+            (p) => `
           <tr data-patient-row="${p.id}">
             <td>${p.name}</td>
             <td>${p.email}</td>
@@ -129,7 +172,9 @@ function renderPatients() {
               <button class="button ghost" type="button" data-call-patient="${p.id}">Call</button>
             </td>
           </tr>
-        `).join("")}
+        `
+          )
+          .join("")}
       </tbody>
     </table>
   `;
@@ -166,9 +211,7 @@ function renderPatients() {
 }
 
 function renderAppointments() {
-  const patients = overview.patients
-    .map((p) => `<option value="${p.id}">${p.name}</option>`)
-    .join("");
+  const patients = overview.patients.map((p) => `<option value="${p.id}">${p.name}</option>`).join("");
   document.querySelector("[data-appointments-table]").innerHTML = `
     <div class="admin-panel">
       <h3>Schedule doctor call</h3>
@@ -189,9 +232,10 @@ function renderAppointments() {
     <table class="admin-table">
       <thead><tr><th>Patient</th><th>When</th><th>Doctor</th><th>Duration</th><th>Status</th><th></th></tr></thead>
       <tbody>
-        ${overview.appointments.map((a) => {
-          const typeLabel = a.patientType === "new" || /initial/i.test(a.type || "") ? "New" : "Returning";
-          return `
+        ${overview.appointments
+          .map((a) => {
+            const typeLabel = a.patientType === "new" || /initial/i.test(a.type || "") ? "New" : "Returning";
+            return `
           <tr data-apt-row="${a.id}">
             <td>${patientName(a.patientId)}</td>
             <td>
@@ -206,7 +250,8 @@ function renderAppointments() {
               <button class="button primary" type="button" data-start-apt="${a.id}">Start call</button>
             </td>
           </tr>`;
-        }).join("")}
+          })
+          .join("")}
       </tbody>
     </table>
   `;

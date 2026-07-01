@@ -172,8 +172,33 @@ app.post("/api/admin/patients", auth(["admin"]), (req, res) => {
   res.json(result);
 });
 
-app.post("/api/admin/prescriptions/:id/dispense", auth(["admin"]), (req, res) => {
-  const result = store.dispensePrescription(req.params.id, req.session.user.id);
+function approveScript(req, res) {
+  const result = store.approvePrescription(req.params.id, req.session.user.id);
+  if (!result.ok) return res.status(400).json(result);
+  res.json(result);
+}
+
+app.post("/api/admin/prescriptions/:id/approve", auth(["admin"]), approveScript);
+app.post("/api/admin/prescriptions/:id/dispense", auth(["admin"]), approveScript);
+
+app.put("/api/patient/profile", auth(["patient"]), (req, res) => {
+  const result = store.updatePatientProfile(req.session.user.id, req.body || {});
+  if (!result.ok) return res.status(400).json(result);
+  res.json(result);
+});
+
+app.post("/api/patient/appointments", auth(["patient"]), (req, res) => {
+  const bundle = store.getPatientBundle(req.session.user.id);
+  const result = store.createAppointment({
+    patientId: req.session.user.id,
+    doctorId: bundle?.patient?.assignedDoctorId,
+    date: req.body.date,
+    time: req.body.time,
+    patientType: req.body.patientType || "existing",
+    type: req.body.type || "Follow-up consult",
+    durationMinutes: req.body.patientType === "new" ? 30 : 15,
+    format: "Phone consult",
+  });
   if (!result.ok) return res.status(400).json(result);
   res.json(result);
 });

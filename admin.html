@@ -15,7 +15,7 @@
           <img class="brand-mark crossroads-logo" src="/crossroads-mark-transparent.png" alt="" width="48" height="48" />
         </a>
         <h1>Admin control</h1>
-        <p class="flow-lead">Add patients, assign doctors, dispense scripts to release them to patient portals.</p>
+          <p class="flow-lead">Approve clinician scripts and send eRx to patients instantly.</p>
         <form class="flow-form" data-login-form>
           <label>Email <input type="email" name="email" required placeholder="admin@crossroads.clinic" /></label>
           <label>Password <input type="password" name="password" required /></label>
@@ -34,7 +34,7 @@
         <a class="brand portal-sidebar__brand" href="/"><span>Crossroads · Admin</span></a>
         <p class="portal-sidebar__user" data-sidebar-name></p>
         <nav class="portal-nav" data-admin-nav>
-          <button type="button" class="active" data-view="dispense">Dispense queue</button>
+          <button type="button" class="active" data-view="dispense">Approve queue</button>
           <button type="button" data-view="patients">Patients</button>
           <button type="button" data-view="appointments">Appointments</button>
         </nav>
@@ -45,14 +45,14 @@
         <header class="portal-top">
           <div>
             <p class="eyebrow">Clinic operations</p>
-            <h1 data-page-title>Dispense queue</h1>
+            <h1 data-page-title>Approve queue</h1>
           </div>
         </header>
 
         <section class="portal-view is-active" data-admin-view="dispense">
           <div class="stat-grid" data-admin-stats></div>
-          <h3>Scripts awaiting dispense</h3>
-          <p class="view-intro">Release scripts here — dispense sends electronically via eRx (AusScripts). Patients receive their token in the portal.</p>
+          <h3>Scripts awaiting approval</h3>
+          <p class="view-intro">Doctor submissions appear here automatically. Approve to send eRx — patients receive their AusScripts link in the portal.</p>
           <div data-dispense-list></div>
           <h3>Reorder requests</h3>
           <div data-reorder-list></div>

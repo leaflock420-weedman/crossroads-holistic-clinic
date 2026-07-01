@@ -12,7 +12,7 @@
 function generateErxToken() {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   let token = "";
-  for (let i = 0; i < 8; i++) token += chars[Math.floor(Math.random() * chars.length)];
+  for (let i = 0; i < 12; i++) token += chars[Math.floor(Math.random() * chars.length)];
   return token;
 }
 
@@ -34,7 +34,7 @@ function sendElectronicPrescription(rx, patient, prescriber) {
     erxStatus: "sent",
     erxSentAt: sentAt,
     erxPrescriber: prescriber?.name || "Crossroads clinician",
-    ausscriptsUrl: `https://ausscripts.erx.com.au/?token=${encodeURIComponent(erxToken)}`,
+    ausscriptsUrl: `https://ausscripts.erx.com.au/scripts/${erxToken}`,
     message: live
       ? `Electronic prescription ${erxScriptId} transmitted via eRx.`
       : `Electronic prescription simulated — token ${erxToken} (connect ERX_API_KEY for live eRx).`,

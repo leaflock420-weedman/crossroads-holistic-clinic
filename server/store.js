@@ -207,24 +207,29 @@ function updatePrescription(id, patch, actorId) {
   if (actor?.role === "doctor") {
     nextPatch.status = "pending_dispense";
     nextPatch.submittedAt = new Date().toISOString();
+    if (nextPatch.intervalDays !== undefined) {
+      nextPatch.intervalDays = Math.max(1, Number(nextPatch.intervalDays));
+    }
   }
   Object.assign(rx, nextPatch, { updatedAt: new Date().toISOString(), prescribedBy: actorId });
   persist();
   return { ok: true, prescription: rx };
 }
 
-function dispensePrescription(id, actorId) {
+function approvePrescription(id, actorId) {
   const rx = state.prescriptions.find((r) => r.id === id);
   if (!rx) return { ok: false, error: "Prescription not found." };
   if (!["pending_dispense", "pending_review", "reorder_requested"].includes(rx.status)) {
-    return { ok: false, error: "Script is not awaiting dispense." };
+    return { ok: false, error: "Script is not awaiting approval." };
   }
   const patient = state.patients.find((p) => p.id === rx.patientId);
   const prescriber = state.users.find((u) => u.id === (rx.prescribedBy || actorId));
   const erx = sendElectronicPrescription(rx, patient, prescriber);
 
   rx.status = "active";
-  rx.dispensedAt = new Date().toISOString();
+  rx.approvedAt = new Date().toISOString();
+  rx.approvedBy = actorId;
+  rx.dispensedAt = rx.approvedAt;
   rx.dispensedBy = actorId;
   rx.erxToken = erx.erxToken;
   rx.erxScriptId = erx.erxScriptId;
@@ -236,14 +241,32 @@ function dispensePrescription(id, actorId) {
     rx.nextReorderAt = new Date(Date.now() + (rx.intervalDays || 28) * 86400000).toISOString();
   }
   persist();
-  return { ok: true, prescription: rx, erx };
+  return { ok: true, prescription: rx, erx, approved: true };
+}
+
+const dispensePrescription = approvePrescription;
+
+function updatePatientProfile(patientId, patch) {
+  const patient = state.patients.find((p) => p.id === patientId);
+  if (!patient) return { ok: false, error: "Patient not found." };
+  const allowed = ["addressLine1", "addressLine2", "suburb", "postcode", "phone", "support"];
+  allowed.forEach((k) => {
+    if (patch[k] !== undefined) patient[k] = patch[k];
+  });
+  persist();
+  return { ok: true, patient: sanitizePatient(patient) };
 }
 
 function createPrescription(patientId, data, actorId) {
   const actor = state.users.find((u) => u.id === actorId);
   let status = data.status || "pending_dispense";
-  if (actor?.role === "doctor" && status === "active") status = "pending_dispense";
+  if (actor?.role === "doctor") status = "pending_dispense";
   if (actor?.role === "admin" && data.releaseNow) status = "active";
+
+  const patient = state.patients.find((p) => p.id === patientId);
+  const hasActive = state.prescriptions.some((r) => r.patientId === patientId && r.status === "active");
+  const supplyDays = Number(data.supplyDays ?? (hasActive ? 60 : 30));
+  const intervalDays = Math.max(1, Number(data.intervalDays ?? supplyDays));
 
   const rx = {
     id: uid("RX"),
@@ -253,9 +276,10 @@ function createPrescription(patientId, data, actorId) {
     repeats: Number(data.repeats ?? 5),
     repeatsTotal: Number(data.repeatsTotal ?? 5),
     status,
-    intervalDays: Number(data.intervalDays ?? 28),
+    supplyDays,
+    intervalDays,
     nextReorderAt: status === "active"
-      ? data.nextReorderAt || new Date(Date.now() + Number(data.intervalDays ?? 28) * 86400000).toISOString()
+      ? data.nextReorderAt || new Date(Date.now() + intervalDays * 86400000).toISOString()
       : null,
     prescribedAt: status === "active" ? new Date().toISOString() : null,
     prescribedBy: actorId,
@@ -920,7 +944,9 @@ module.exports = {
   listDoctors,
   updatePrescription,
   createPrescription,
+  approvePrescription,
   dispensePrescription,
+  updatePatientProfile,
   startTelehealth,
   completeTelehealth,
   requestReorder,

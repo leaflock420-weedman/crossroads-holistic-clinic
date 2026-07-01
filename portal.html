@@ -84,6 +84,16 @@
         </section>
 
         <section class="patient-view" data-portal-view="appointments" hidden>
+          <div class="patient-card patient-book-card">
+            <h3>Book follow-up</h3>
+            <p class="view-intro">New patients need a review in 30 days. Returning patients typically book every 60 days when scripts run out.</p>
+            <form class="flow-form" data-followup-form>
+              <label>Preferred date <input type="date" name="date" required data-followup-date /></label>
+              <label>Preferred time <input type="time" name="time" required step="900" /></label>
+              <button class="button primary" type="submit">Request follow-up appointment</button>
+            </form>
+            <p class="form-note" data-followup-result hidden></p>
+          </div>
           <div class="appointment-list" data-appointment-list></div>
         </section>
 
@@ -99,6 +109,18 @@
         </section>
 
         <section class="patient-view" data-portal-view="profile" hidden>
+          <form class="flow-form patient-address-form" data-address-form>
+            <h3>Delivery address</h3>
+            <p class="view-intro">For pharmacy delivery or courier — update anytime.</p>
+            <label>Street address <input name="addressLine1" required placeholder="Unit 1, 12 Example St" /></label>
+            <label>Address line 2 <input name="addressLine2" placeholder="Optional" /></label>
+            <div class="field-grid">
+              <label>Suburb <input name="suburb" required /></label>
+              <label>Postcode <input name="postcode" required pattern="[0-9]{4}" /></label>
+            </div>
+            <label>Phone <input name="phone" /></label>
+            <button class="button primary" type="submit">Save address</button>
+          </form>
           <dl class="profile-list" data-profile-list></dl>
         </section>
       </main>

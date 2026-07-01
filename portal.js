@@ -1,5 +1,6 @@
 import { PRODUCTS } from "./js/data.js";
 import { api, setToken, getToken, configureAuth, clearOtherPortalTokens, isReorderReady, daysUntilReorder, isDemoMode } from "./js/api.js";
+import { onClinicUpdate, startPolling } from "./js/sync.js";
 
 configureAuth("patient");
 
@@ -27,6 +28,7 @@ const TITLES = {
 
 let patientData = null;
 let cart = [];
+let stopPolling = null;
 
 function visiblePrescriptions(list) {
   return (list || []).filter((r) => r.status === "active" || r.status === "reorder_requested");
@@ -165,10 +167,11 @@ function renderScripts() {
       <dl class="script-meta">
         <div><dt>Prescribed</dt><dd>${rx.prescribedAt ? formatDate(rx.prescribedAt) : "—"}</dd></div>
         <div><dt>Repeats</dt><dd>${rx.repeats} / ${rx.repeatsTotal}</dd></div>
-        <div><dt>Interval</dt><dd>Every ${rx.intervalDays || 28} days</dd></div>
+        <div><dt>Supply</dt><dd>${rx.supplyDays || 30} days</dd></div>
+        <div><dt>Interval</dt><dd>Every ${rx.intervalDays || 30} day${rx.intervalDays === 1 ? "" : "s"}</dd></div>
         <div><dt>Next reorder</dt><dd>${rx.nextReorderAt ? formatDate(rx.nextReorderAt) : "TBC"}</dd></div>
       </dl>
-      ${rx.erxToken ? `<div class="erx-token-card"><p class="eyebrow">eRx token</p><p class="erx-token">${rx.erxToken}</p><p><a href="${rx.ausscriptsUrl || "https://ausscripts.erx.com.au/"}" target="_blank" rel="noopener">Order via AusScripts</a> or present at pharmacy.</p></div>` : ""}
+      ${rx.erxToken ? `<div class="erx-token-card"><p class="eyebrow">Your eScript (eRx)</p><p class="erx-token">${rx.erxToken}</p><p><a href="${rx.ausscriptsUrl || `https://ausscripts.erx.com.au/scripts/${rx.erxToken}`}" target="_blank" rel="noopener">Open AusScripts link</a> — present at any Australian pharmacy.</p></div>` : ""}
       <div class="script-card__actions">
         ${ready ? `<button type="button" class="button primary" data-reorder="${rx.id}">Request reorder</button>` : ""}
         ${change ? `<span class="status-pill pending">Change request pending</span>` : `<button type="button" class="button ghost" data-request-change="${rx.id}">Request medication change</button>`}
@@ -295,11 +298,21 @@ function renderCart() {
 
 function renderProfile() {
   const list = document.querySelector("[data-profile-list]");
+  const form = document.querySelector("[data-address-form]");
   const { patient } = patientData;
+  if (form) {
+    form.addressLine1.value = patient.addressLine1 || "";
+    form.addressLine2.value = patient.addressLine2 || "";
+    form.suburb.value = patient.suburb || "";
+    form.postcode.value = patient.postcode || "";
+    form.phone.value = patient.phone || "";
+  }
+  const addr = [patient.addressLine1, patient.suburb, patient.postcode].filter(Boolean).join(", ");
   list.innerHTML = `
     <div><dt>Name</dt><dd>${patient.name}</dd></div>
     <div><dt>Email</dt><dd>${patient.email}</dd></div>
     <div><dt>Phone</dt><dd>${patient.phone || "—"}</dd></div>
+    <div><dt>Delivery</dt><dd>${addr || "Add address above"}</dd></div>
     <div><dt>State</dt><dd>${patient.state}</dd></div>
     <div><dt>Support focus</dt><dd>${patient.support || "—"}</dd></div>
     <div><dt>Status</dt><dd>${patient.stage}</dd></div>
@@ -317,6 +330,9 @@ async function refresh() {
   renderProducts();
   renderProfile();
   showApp();
+  stopPolling?.();
+  stopPolling = startPolling(() => refresh(), 4000);
+  onClinicUpdate(() => refresh());
 }
 
 loginForm?.addEventListener("submit", async (e) => {
@@ -351,6 +367,47 @@ bottomNav?.addEventListener("click", (e) => {
 });
 document.querySelector("[data-menu-toggle]")?.addEventListener("click", () => {
   sidebar?.classList.toggle("is-open");
+});
+
+document.querySelector("[data-address-form]")?.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  await api("/api/patient/profile", {
+    method: "PUT",
+    body: JSON.stringify({
+      addressLine1: fd.get("addressLine1"),
+      addressLine2: fd.get("addressLine2"),
+      suburb: fd.get("suburb"),
+      postcode: fd.get("postcode"),
+      phone: fd.get("phone"),
+    }),
+  });
+  await refresh();
+  alert("Address saved.");
+});
+
+document.querySelector("[data-followup-form]")?.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  const resultEl = document.querySelector("[data-followup-result]");
+  try {
+    const hasActive = (patientData?.prescriptions || []).some((r) => r.status === "active");
+    await api("/api/patient/appointments", {
+      method: "POST",
+      body: JSON.stringify({
+        date: fd.get("date"),
+        time: fd.get("time"),
+        patientType: hasActive ? "existing" : "new",
+        type: hasActive ? "60-day review" : "30-day review",
+      }),
+    });
+    resultEl.textContent = "Follow-up requested — your clinician will confirm the time.";
+    resultEl.hidden = false;
+    await refresh();
+  } catch (err) {
+    resultEl.textContent = err.message;
+    resultEl.hidden = false;
+  }
 });
 
 document.querySelector("[data-checkout-products]")?.addEventListener("click", async () => {

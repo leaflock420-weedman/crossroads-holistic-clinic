@@ -746,6 +746,23 @@
   margin: 0 0 4px;
 }
 
+.queue-card--fresh {
+  border-color: var(--line-strong);
+  box-shadow: 0 0 0 1px rgba(156, 255, 46, 0.15);
+}
+
+.patient-book-card {
+  margin-bottom: 16px;
+}
+
+.patient-address-form {
+  margin-bottom: 20px;
+  padding: 20px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
 .admin-inline-input {
   display: block;
   width: 100%;

@@ -133,21 +133,39 @@
               </section>
 
               <section class="crm-detail__section">
-                <h3>Update script</h3>
+                <h3>Submit script</h3>
                 <form class="flow-form crm-script-form" data-script-form hidden>
                   <input type="hidden" name="prescriptionId" />
                   <input type="hidden" name="patientId" />
                   <input type="hidden" name="appointmentId" />
-                  <label>Medication <input name="name" required /></label>
-                  <label>Form <input name="form" placeholder="e.g. Dried herb · 10g" /></label>
+                  <input type="hidden" name="isNewScript" value="0" />
+                  <label>Medication <input name="name" required placeholder="Product name" /></label>
+                  <label>Form
+                    <select name="formType" data-form-type>
+                      <option value="Dried flower · 60g/month">Dried flower (60g/month standard)</option>
+                      <option value="Oral oil">Oral oil</option>
+                      <option value="Vape cartridge">Vape cartridge</option>
+                      <option value="Capsules">Capsules</option>
+                      <option value="Concentrate">Concentrate</option>
+                      <option value="Lozenge">Lozenge</option>
+                      <option value="custom">Custom…</option>
+                    </select>
+                  </label>
+                  <label data-form-custom hidden>Custom form <input name="formCustom" placeholder="e.g. Dried herb · 10g" /></label>
                   <div class="field-grid">
-                    <label>Repeats left <input name="repeats" type="number" min="0" max="10" /></label>
-                    <label>Interval (days) <input name="intervalDays" type="number" min="7" max="90" /></label>
+                    <label>Supply period
+                      <select name="supplyDays" data-supply-days>
+                        <option value="30">First script · 30 days</option>
+                        <option value="60">Standard · 60 days (2 months)</option>
+                      </select>
+                    </label>
+                    <label>Reorder interval (days) <input name="intervalDays" type="number" min="1" max="90" value="30" /></label>
                   </div>
+                  <label>Repeats left <input name="repeats" type="number" min="0" max="10" value="5" /></label>
                   <input type="hidden" name="status" value="pending_dispense" />
-                  <p class="form-note">Saving sends the script to admin for dispense — patients see it once released.</p>
+                  <p class="form-note">Submits instantly to admin approval queue. Patient receives eRx link after admin approves.</p>
                   <label>Notes <textarea name="notes" rows="3"></textarea></label>
-                  <button class="button primary full" type="submit">Submit for admin dispense</button>
+                  <button class="button primary full" type="submit">Submit for admin approval</button>
                 </form>
                 <button class="button ghost full" type="button" data-new-script hidden>Add new script</button>
               </section>

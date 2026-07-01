@@ -1,5 +1,6 @@
 import { generateTimeSlots } from "./js/data.js";
 import { api, setToken, getToken, configureAuth, clearOtherPortalTokens } from "./js/api.js";
+import { notifyClinicUpdate } from "./js/sync.js";
 
 configureAuth("doctor");
 
@@ -296,27 +297,49 @@ async function openDetail(patientId, appointmentId, opts = {}) {
   document.querySelector("[data-detail-call]")?.addEventListener("click", () => startCall(apt.id));
   document.querySelector("[data-detail-complete]")?.addEventListener("click", () => completeCall(apt.id));
 
-  const editable = data.prescriptions.find((r) => r.status !== "active") || data.prescriptions[0];
-  if (editable) loadScriptForm(editable, patientId, appointmentId);
-  else showNewScript(patientId, appointmentId);
+  const editable =
+    data.prescriptions.find((r) => r.status === "pending_review" || r.status === "pending_dispense") ||
+    data.prescriptions[0];
+  const isNewPatient = !data.prescriptions.some((r) => r.status === "active");
+  if (editable && editable.status === "pending_review") {
+    loadScriptForm(editable, patientId, appointmentId, false);
+  } else {
+    showNewScript(patientId, appointmentId, isNewPatient);
+  }
 
   newScriptBtn.hidden = false;
-  newScriptBtn.onclick = () => showNewScript(patientId, appointmentId);
+  newScriptBtn.onclick = () => showNewScript(patientId, appointmentId, isNewPatient);
 
   if (!opts.silent) renderBoard();
 }
 
-function loadScriptForm(rx, patientId, appointmentId) {
+function resolveFormValue(fd) {
+  const type = fd.get("formType");
+  if (type === "custom") return fd.get("formCustom") || "";
+  return type || "";
+}
+
+function loadScriptForm(rx, patientId, appointmentId, isNew = false) {
   scriptForm.hidden = false;
-  scriptForm.prescriptionId.value = rx?.id || "";
+  scriptForm.prescriptionId.value = isNew ? "" : rx?.id || "";
+  scriptForm.isNewScript.value = isNew ? "1" : "0";
   scriptForm.patientId.value = patientId;
   scriptForm.appointmentId.value = appointmentId || "";
-  if (rx) {
+  const hasActive = rx && rx.status === "active";
+  const supplyEl = scriptForm.querySelector("[data-supply-days]");
+  if (supplyEl) supplyEl.value = String(rx?.supplyDays ?? (hasActive ? 60 : 30));
+  if (rx && !isNew) {
     scriptForm.name.value = rx.name;
-    scriptForm.form.value = rx.form || "";
     scriptForm.repeats.value = rx.repeats;
-    scriptForm.intervalDays.value = rx.intervalDays || 28;
+    scriptForm.intervalDays.value = rx.intervalDays || rx.supplyDays || 30;
     scriptForm.notes.value = rx.notes || "";
+    const match = scriptForm.formType?.querySelector(`option[value="${rx.form}"]`);
+    if (match) scriptForm.formType.value = rx.form;
+    else if (rx.form) {
+      scriptForm.formType.value = "custom";
+      scriptForm.formCustom.value = rx.form;
+      document.querySelector("[data-form-custom]")?.removeAttribute("hidden");
+    }
   }
   scriptForm.status.value = "pending_dispense";
 }
@@ -329,16 +352,19 @@ function closeDetail() {
   renderBoard();
 }
 
-function showNewScript(patientId, appointmentId) {
+function showNewScript(patientId, appointmentId, isNewPatient = true) {
   scriptForm.hidden = false;
+  scriptForm.reset();
   scriptForm.prescriptionId.value = "";
+  scriptForm.isNewScript.value = "1";
   scriptForm.patientId.value = patientId;
   scriptForm.appointmentId.value = appointmentId || "";
-  scriptForm.reset();
-  scriptForm.patientId.value = patientId;
   scriptForm.status.value = "pending_dispense";
-  scriptForm.intervalDays.value = 28;
   scriptForm.repeats.value = 5;
+  const supply = isNewPatient ? 30 : 60;
+  scriptForm.supplyDays.value = String(supply);
+  scriptForm.intervalDays.value = supply;
+  document.querySelector("[data-form-custom]")?.setAttribute("hidden", "");
 }
 
 async function startCall(appointmentId) {
@@ -377,32 +403,47 @@ callDone?.addEventListener("click", async () => {
   await completeCall(activeAppointmentId);
 });
 
+scriptForm?.querySelector("[data-form-type]")?.addEventListener("change", (e) => {
+  const custom = document.querySelector("[data-form-custom]");
+  if (!custom) return;
+  if (e.target.value === "custom") custom.removeAttribute("hidden");
+  else custom.setAttribute("hidden", "");
+});
+
+scriptForm?.querySelector("[data-supply-days]")?.addEventListener("change", (e) => {
+  const days = Number(e.target.value);
+  if (scriptForm.intervalDays) scriptForm.intervalDays.value = days;
+});
+
 scriptForm?.addEventListener("submit", async (e) => {
   e.preventDefault();
   const fd = new FormData(scriptForm);
   const prescriptionId = fd.get("prescriptionId");
+  const isNewScript = fd.get("isNewScript") === "1" || !prescriptionId;
   const payload = {
     name: fd.get("name"),
-    form: fd.get("form"),
+    form: resolveFormValue(fd),
     repeats: Number(fd.get("repeats")),
     repeatsTotal: Number(fd.get("repeats")),
-    intervalDays: Number(fd.get("intervalDays")),
+    supplyDays: Number(fd.get("supplyDays") || 30),
+    intervalDays: Math.max(1, Number(fd.get("intervalDays"))),
     status: "pending_dispense",
     notes: fd.get("notes"),
   };
 
-  if (prescriptionId) {
-    await api(`/api/prescriptions/${prescriptionId}`, { method: "PUT", body: JSON.stringify(payload) });
-  } else {
+  if (isNewScript) {
     await api("/api/prescriptions", {
       method: "POST",
       body: JSON.stringify({ patientId: fd.get("patientId"), ...payload }),
     });
+  } else {
+    await api(`/api/prescriptions/${prescriptionId}`, { method: "PUT", body: JSON.stringify(payload) });
   }
 
+  notifyClinicUpdate();
   await loadQueue();
   await openDetail(fd.get("patientId"), fd.get("appointmentId"), { silent: true });
-  alert("Script submitted to admin — it will appear in the patient portal once dispensed.");
+  alert("Script submitted — admin approval queue updated. Patient gets eRx after approval.");
 });
 
 const availabilityDate = document.querySelector("[data-availability-date]");
