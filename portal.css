@@ -1384,6 +1384,115 @@
   border-radius: 8px;
 }
 
+.admin-patients-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+}
+
+.admin-patients-layout.has-hub-open {
+  grid-template-columns: minmax(0, 1fr) minmax(360px, 420px);
+}
+
+.admin-patient-hub {
+  position: sticky;
+  top: 16px;
+  align-self: start;
+  max-height: calc(100vh - 80px);
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.28);
+  overflow: hidden;
+}
+
+.admin-patient-hub__head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 18px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.admin-patient-hub__head h2 {
+  margin: 0 0 4px;
+  font-size: 1.2rem;
+}
+
+.admin-patient-hub__status {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.84rem;
+}
+
+.admin-patient-hub__scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 18px 20px;
+}
+
+.admin-hub-section {
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.admin-hub-section h3 {
+  margin: 0 0 10px;
+  font-size: 0.92rem;
+}
+
+.admin-hub-form label {
+  margin-bottom: 10px;
+}
+
+.admin-timeline {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.admin-timeline__item {
+  padding: 10px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.admin-timeline__item time {
+  display: block;
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.admin-timeline__item strong {
+  display: block;
+  margin-top: 2px;
+  font-size: 0.88rem;
+}
+
+.admin-timeline__item span {
+  color: var(--soft);
+  font-size: 0.82rem;
+}
+
+.admin-callbacks-panel {
+  margin-bottom: 20px;
+}
+
+.admin-callbacks-grid {
+  display: grid;
+  gap: 10px;
+}
+
+.admin-table tr.is-selected {
+  background: rgba(156, 255, 46, 0.06);
+}
+
+.patient-request-card {
+  margin-bottom: 16px;
+}
+
 .followup-slot-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));

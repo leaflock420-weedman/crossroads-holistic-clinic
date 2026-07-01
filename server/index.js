@@ -94,6 +94,12 @@ app.post("/api/patient/prescriptions/:id/change-request", auth(["patient"]), (re
   res.json(result);
 });
 
+app.post("/api/patient/medication-requests", auth(["patient"]), (req, res) => {
+  const result = store.requestPatientMedication(req.session.user.id, req.body || {});
+  if (!result.ok) return res.status(400).json(result);
+  res.json(result);
+});
+
 app.post("/api/patient/orders", auth(["patient"]), (req, res) => {
   const result = store.placeOrder(req.session.user.id, req.body.items || [], {
     delivery: req.body.delivery,
@@ -155,7 +161,11 @@ app.post("/api/doctor/appointments", auth(["doctor"]), (req, res) => {
 });
 
 app.put("/api/doctor/appointments/:id", auth(["doctor"]), (req, res) => {
-  const result = store.updateAppointment(req.params.id, req.body || {});
+  const result = store.updateAppointment(req.params.id, {
+    ...req.body,
+    scheduledBy: req.session.user.id,
+    source: "doctor",
+  });
   if (!result.ok) return res.status(404).json(result);
   res.json(result);
 });
@@ -236,9 +246,22 @@ app.put("/api/doctor/availability", auth(["doctor"]), (req, res) => {
   res.json(result);
 });
 
+app.get("/api/admin/patients/:id/detail", auth(["admin"]), (req, res) => {
+  const data = store.getAdminPatientDetail(req.params.id);
+  if (!data) return res.status(404).json({ error: "Patient not found." });
+  res.json(data);
+});
+
 app.put("/api/admin/patients/:id", auth(["admin"]), (req, res) => {
   const result = store.updatePatient(req.params.id, req.body || {});
   if (!result.ok) return res.status(404).json(result);
+  res.json(result);
+});
+
+app.post("/api/admin/prescriptions", auth(["admin"]), (req, res) => {
+  const { patientId, ...data } = req.body || {};
+  if (!patientId) return res.status(400).json({ error: "patientId required" });
+  const result = store.adminAddPrescription(patientId, data, req.session.user.id);
   res.json(result);
 });
 

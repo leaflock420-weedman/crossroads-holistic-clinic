@@ -79,7 +79,12 @@
         </section>
 
         <section class="patient-view" data-portal-view="scripts" hidden>
-          <p class="view-intro">Active prescriptions. Request a medication change if your usual product is out of stock.</p>
+          <div class="patient-card patient-request-card">
+            <h3>Request what you need next</h3>
+            <p class="view-intro">Propose a new medication, strength change, or alternative product — admin reviews first, then your clinician approves. Saves phone time.</p>
+            <button type="button" class="button primary" data-open-med-request>New medication request</button>
+          </div>
+          <p class="view-intro">Active prescriptions — request a change if your usual product is unavailable.</p>
           <div class="script-list" data-script-list></div>
         </section>
 
@@ -142,6 +147,45 @@
         <button type="button" data-view="profile">Profile</button>
       </nav>
     </div>
+
+    <dialog class="change-dialog" data-med-request-dialog>
+      <form method="dialog" class="change-dialog__form" data-med-request-form>
+        <h3>New medication request</h3>
+        <p class="change-dialog__lead">Tell us what you'd like prescribed next. Admin will review and forward to your clinician for approval.</p>
+        <label>Request type
+          <select name="requestType" required>
+            <option value="new_medication">New medication / product</option>
+            <option value="strength_change">Strength or dose change</option>
+            <option value="change">Change from current script</option>
+          </select>
+        </label>
+        <label>Product / medication name <input name="requestedProduct" required placeholder="e.g. Evening calm flower" /></label>
+        <label>Preferred form
+          <select name="requestedForm" required>
+            <option value="Dried flower">Dried flower</option>
+            <option value="Oral oil">Oral oil</option>
+            <option value="Vape cartridge">Vape cartridge</option>
+            <option value="Capsules">Capsules</option>
+            <option value="Other">Other</option>
+          </select>
+        </label>
+        <label>Strength / notes <input name="requestedStrength" placeholder="e.g. higher THC, 60g/month" /></label>
+        <label>Reason
+          <select name="reason">
+            <option value="patient_request">I'd like to try something new</option>
+            <option value="out_of_stock">Current product unavailable</option>
+            <option value="tolerance">Tolerance / effectiveness</option>
+            <option value="side_effects">Side effects</option>
+            <option value="other">Other</option>
+          </select>
+        </label>
+        <label>Notes for clinician <textarea name="notes" rows="3"></textarea></label>
+        <div class="change-dialog__actions">
+          <button class="button ghost" type="button" data-med-request-cancel>Cancel</button>
+          <button class="button primary" type="submit">Submit to admin</button>
+        </div>
+      </form>
+    </dialog>
 
     <dialog class="change-dialog" data-change-dialog>
       <form method="dialog" class="change-dialog__form" data-change-form>

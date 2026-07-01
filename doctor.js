@@ -310,7 +310,7 @@ async function openDetail(patientId, appointmentId, opts = {}) {
       <article class="queue-card">
         <div>
           <strong>${c.requestedProduct || "Alternative medication"}</strong>
-          <p>${c.currentName} → ${c.requestedForm}</p>
+          <p>${c.currentName ? `${c.currentName} → ` : ""}${c.requestedForm || c.requestedStrength || "Review request"}</p>
           <p class="queue-phone">${c.reason} · ${c.notes || ""}</p>
         </div>
         <div>

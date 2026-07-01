@@ -471,6 +471,191 @@ function adminCreatePatient(payload) {
   return { ok: true, patient: sanitizePatient(patient), password };
 }
 
+function getUpcomingCallbacks(limit = 25) {
+  const today = new Date().toISOString().slice(0, 10);
+  return state.appointments
+    .filter(
+      (a) =>
+        a.status !== "cancelled" &&
+        a.telehealthStatus !== "completed" &&
+        a.telehealthStatus !== "cancelled" &&
+        a.date >= today
+    )
+    .sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`))
+    .slice(0, limit)
+    .map((a) => {
+      const patient = state.patients.find((p) => p.id === a.patientId);
+      return {
+        ...a,
+        patientName: patient?.name || "Patient",
+        patientPhone: patient?.phone || "",
+      };
+    });
+}
+
+function buildPatientTimeline(patientId) {
+  const events = [];
+  const patient = state.patients.find((p) => p.id === patientId);
+
+  state.appointments
+    .filter((a) => a.patientId === patientId)
+    .forEach((a) => {
+      if (a.createdAt) {
+        events.push({
+          at: a.createdAt,
+          type: "appointment_created",
+          label: "Appointment scheduled",
+          detail: `${a.date} ${a.time} · ${a.clinician || "—"} · ${a.type || "Consult"}`,
+        });
+      }
+      if (a.updatedAt) {
+        events.push({
+          at: a.updatedAt,
+          type: "appointment_updated",
+          label: "Call time updated",
+          detail: `Now ${a.date} ${a.time} · ${a.clinician || "—"}`,
+        });
+      }
+      if (a.cancelledAt) {
+        events.push({
+          at: a.cancelledAt,
+          type: "appointment_cancelled",
+          label: "Appointment cancelled",
+          detail: `${a.date} ${a.time}`,
+        });
+      }
+      if (a.callEndedAt) {
+        events.push({
+          at: a.callEndedAt,
+          type: "consult_completed",
+          label: "Phone consult completed",
+          detail: `${a.date} ${a.time}`,
+        });
+      }
+    });
+
+  state.prescriptions
+    .filter((r) => r.patientId === patientId)
+    .forEach((r) => {
+      if (r.submittedAt) {
+        events.push({
+          at: r.submittedAt,
+          type: "script_submitted",
+          label: "Script submitted for approval",
+          detail: `${r.name} · ${r.status}`,
+        });
+      }
+      if (r.approvedAt || r.dispensedAt) {
+        events.push({
+          at: r.approvedAt || r.dispensedAt,
+          type: "script_approved",
+          label: "Script approved & eRx sent",
+          detail: r.name,
+        });
+      }
+    });
+
+  state.changeRequests
+    .filter((c) => c.patientId === patientId)
+    .forEach((c) => {
+      events.push({
+        at: c.createdAt,
+        type: "change_request",
+        label:
+          c.requestType === "new_medication"
+            ? "New medication requested"
+            : c.requestType === "strength_change"
+              ? "Strength change requested"
+              : "Medication change requested",
+        detail: `${c.requestedProduct || c.requestedForm || "—"} · ${c.status}`,
+      });
+      if (c.forwardedAt) {
+        events.push({
+          at: c.forwardedAt,
+          type: "change_forwarded",
+          label: "Request sent to doctor",
+          detail: doctorNameById(c.assignedDoctorId),
+        });
+      }
+      if (c.reviewedAt) {
+        events.push({
+          at: c.reviewedAt,
+          type: c.status === "approved" ? "change_approved" : "change_denied",
+          label: c.status === "approved" ? "Doctor approved request" : "Doctor declined request",
+          detail: c.requestedProduct || c.requestedForm || "",
+        });
+      }
+    });
+
+  state.orders
+    .filter((o) => o.patientId === patientId)
+    .forEach((o) => {
+      events.push({
+        at: o.createdAt,
+        type: "order",
+        label: "Product order placed",
+        detail: `$${Number(o.total || 0).toFixed(2)} · ${o.status}`,
+      });
+    });
+
+  if (patient?.createdAt) {
+    events.push({
+      at: patient.createdAt,
+      type: "patient_joined",
+      label: "Patient registered",
+      detail: patient.email,
+    });
+  }
+
+  return events.sort((a, b) => new Date(b.at || 0) - new Date(a.at || 0));
+}
+
+function doctorNameById(id) {
+  const d = state.users.find((u) => u.id === id && u.role === "doctor");
+  return d?.name || "Assigned doctor";
+}
+
+function getAdminPatientDetail(patientId) {
+  const bundle = getPatientBundle(patientId);
+  if (!bundle) return null;
+  const today = new Date().toISOString().slice(0, 10);
+  const upcoming = bundle.appointments
+    .filter(
+      (a) =>
+        a.status !== "cancelled" &&
+        a.telehealthStatus !== "completed" &&
+        a.telehealthStatus !== "cancelled" &&
+        a.date >= today
+    )
+    .sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`));
+  return {
+    ...bundle,
+    timeline: buildPatientTimeline(patientId),
+    nextCallback: upcoming[0] || null,
+    upcomingAppointments: upcoming,
+    assignedDoctor: state.users.find((u) => u.id === bundle.patient.assignedDoctorId) || null,
+    doctors: state.users.filter((u) => u.role === "doctor").map(sanitizeUser),
+  };
+}
+
+function adminAddPrescription(patientId, data, adminId) {
+  const status = data.releaseNow ? "active" : data.status || "pending_dispense";
+  return createPrescription(
+    patientId,
+    {
+      name: data.name,
+      form: data.form || "",
+      repeats: data.repeats ?? 5,
+      supplyDays: data.supplyDays ?? 30,
+      intervalDays: data.intervalDays ?? 30,
+      notes: data.notes || "Added by admin.",
+      status,
+      releaseNow: data.releaseNow,
+    },
+    adminId
+  );
+}
+
 function adminOverview() {
   return {
     stats: {
@@ -490,12 +675,31 @@ function adminOverview() {
     orders: state.orders,
     doctors: state.users.filter((u) => u.role === "doctor").map(sanitizeUser),
     telehealthLogs: state.telehealthLogs.slice(-20),
+    upcomingCallbacks: getUpcomingCallbacks(),
   };
 }
 
 function updatePatient(id, patch) {
   const patient = state.patients.find((p) => p.id === id);
   if (!patient) return { ok: false, error: "Patient not found." };
+  const allowed = [
+    "name",
+    "email",
+    "phone",
+    "state",
+    "support",
+    "stage",
+    "addressLine1",
+    "addressLine2",
+    "suburb",
+    "postcode",
+    "assignedDoctorId",
+  ];
+  const safePatch = {};
+  allowed.forEach((k) => {
+    if (patch[k] !== undefined) safePatch[k] = patch[k];
+  });
+  patch = safePatch;
   if (patch.assignedDoctorId !== undefined) {
     const doctor = patch.assignedDoctorId ? resolveDoctor(patch.assignedDoctorId) : null;
     patch.assignedDoctorId = doctor?.id || patch.assignedDoctorId || null;
@@ -535,6 +739,10 @@ function updateAppointment(id, patch) {
   if (nextDoctorId && nextDate && nextTime) {
     const slotCheck = validateAppointmentSlot(nextDoctorId, nextDate, nextTime, id);
     if (!slotCheck.ok) return slotCheck;
+  }
+  if (patch.date || patch.time || patch.doctorId) {
+    apt.updatedAt = new Date().toISOString();
+    if (patch.scheduledBy) apt.lastScheduledBy = patch.scheduledBy;
   }
   Object.assign(apt, patch);
   if (patch.doctorId && apt.patientId) {
@@ -591,6 +799,8 @@ function createAppointment(payload) {
     durationMinutes: payload.durationMinutes || (isNew ? NEW_PATIENT_MINUTES : APPOINTMENT_MINUTES),
     telehealthStatus: "scheduled",
     scheduledBy: payload.scheduledBy || null,
+    createdAt: new Date().toISOString(),
+    source: payload.source || "admin",
   };
   state.appointments.push(apt);
   if (doctor) patient.assignedDoctorId = doctor.id;
@@ -605,7 +815,7 @@ function requestMedicationChange(patientId, prescriptionId, body) {
     return { ok: false, error: "Only active scripts can be changed." };
   }
   const open = state.changeRequests.find(
-    (c) => c.prescriptionId === prescriptionId && c.status === "pending"
+    (c) => c.prescriptionId === prescriptionId && ["pending", "with_doctor"].includes(c.status)
   );
   if (open) return { ok: false, error: "You already have a change request awaiting review." };
 
@@ -613,11 +823,43 @@ function requestMedicationChange(patientId, prescriptionId, body) {
     id: uid("CHG"),
     patientId,
     prescriptionId,
+    requestType: body.requestType || "change",
     currentName: rx.name,
     currentForm: rx.form,
     requestedForm: body.requestedForm || "",
     requestedProduct: body.requestedProduct || "",
+    requestedStrength: body.requestedStrength || "",
     reason: body.reason || "out_of_stock",
+    notes: body.notes || "",
+    status: "pending",
+    createdAt: new Date().toISOString(),
+  };
+  state.changeRequests.push(req);
+  persist();
+  return { ok: true, changeRequest: req };
+}
+
+function requestPatientMedication(patientId, body) {
+  if (body.prescriptionId) return requestMedicationChange(patientId, body.prescriptionId, body);
+  const requestType = body.requestType || "new_medication";
+  const open = state.changeRequests.find(
+    (c) =>
+      c.patientId === patientId &&
+      ["pending", "with_doctor"].includes(c.status) &&
+      (!c.prescriptionId || c.requestType === requestType)
+  );
+  if (open) return { ok: false, error: "You already have a medication request awaiting review." };
+  const req = {
+    id: uid("CHG"),
+    patientId,
+    prescriptionId: null,
+    requestType,
+    currentName: null,
+    currentForm: null,
+    requestedForm: body.requestedForm || "",
+    requestedProduct: body.requestedProduct || "",
+    requestedStrength: body.requestedStrength || "",
+    reason: body.reason || "patient_request",
     notes: body.notes || "",
     status: "pending",
     createdAt: new Date().toISOString(),
@@ -647,20 +889,39 @@ function approveChangeRequest(id, doctorId, patch) {
   const req = state.changeRequests.find((c) => c.id === id);
   if (!req) return { ok: false, error: "Change request not found." };
   if (!["with_doctor", "pending"].includes(req.status)) return { ok: false, error: "Request already processed." };
-  const rx = state.prescriptions.find((r) => r.id === req.prescriptionId);
-  if (!rx) return { ok: false, error: "Prescription not found." };
 
-  const nextName = patch.name || req.requestedProduct || rx.name;
-  const nextForm = patch.form || req.requestedForm || rx.form;
-  Object.assign(rx, {
-    name: nextName,
-    form: nextForm,
-    status: "pending_dispense",
-    submittedAt: new Date().toISOString(),
-    prescribedBy: doctorId,
-    notes: patch.notes || `Approved change: ${req.reason}. ${req.notes || ""}`.trim(),
-    updatedAt: new Date().toISOString(),
-  });
+  let rx = req.prescriptionId ? state.prescriptions.find((r) => r.id === req.prescriptionId) : null;
+  const note = patch.notes || `${req.requestType === "new_medication" ? "New medication" : "Approved change"}: ${req.reason}. ${req.notes || ""}`.trim();
+
+  if (!rx) {
+    const created = createPrescription(
+      req.patientId,
+      {
+        name: patch.name || req.requestedProduct || "Patient requested medication",
+        form: patch.form || req.requestedForm || "As prescribed",
+        repeats: Number(patch.repeats ?? 5),
+        supplyDays: Number(patch.supplyDays ?? 30),
+        intervalDays: Number(patch.intervalDays ?? 30),
+        status: "pending_dispense",
+        notes: note,
+      },
+      doctorId
+    );
+    rx = created.prescription;
+  } else {
+    const nextName = patch.name || req.requestedProduct || rx.name;
+    const nextForm = patch.form || req.requestedForm || rx.form;
+    Object.assign(rx, {
+      name: nextName,
+      form: nextForm,
+      status: "pending_dispense",
+      submittedAt: new Date().toISOString(),
+      prescribedBy: doctorId,
+      notes: note,
+      updatedAt: new Date().toISOString(),
+    });
+  }
+
   req.status = "approved";
   req.reviewedAt = new Date().toISOString();
   req.reviewedBy = doctorId;
@@ -1099,6 +1360,10 @@ module.exports = {
   updateAppointment,
   createAppointment,
   requestMedicationChange,
+  requestPatientMedication,
+  getAdminPatientDetail,
+  getUpcomingCallbacks,
+  adminAddPrescription,
   forwardChangeRequest,
   approveChangeRequest,
   denyChangeRequest,

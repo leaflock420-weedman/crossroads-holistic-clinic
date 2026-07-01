@@ -18,6 +18,8 @@ const pageEyebrow = document.querySelector("[data-page-eyebrow]");
 const headerName = document.querySelector("[data-header-name]");
 const changeDialog = document.querySelector("[data-change-dialog]");
 const changeForm = document.querySelector("[data-change-form]");
+const medRequestDialog = document.querySelector("[data-med-request-dialog]");
+const medRequestForm = document.querySelector("[data-med-request-form]");
 
 const TITLES = {
   overview: "Overview",
@@ -84,7 +86,9 @@ function renderOverview() {
   const visible = visiblePrescriptions(prescriptions);
   const activeRx = visible.filter((r) => r.status === "active");
   const readyRx = activeRx.filter(isReorderReady);
-  const pendingChanges = (patientData.changeRequests || []).filter((c) => c.status === "pending").length;
+  const pendingChanges = (patientData.changeRequests || []).filter((c) =>
+    ["pending", "with_doctor"].includes(c.status)
+  ).length;
 
   stats.innerHTML = `
     <article class="patient-stat"><strong>${activeRx.length}</strong><span>Active scripts</span></article>
@@ -218,6 +222,34 @@ changeForm?.addEventListener("submit", async (e) => {
 });
 
 document.querySelector("[data-change-cancel]")?.addEventListener("click", () => changeDialog?.close());
+
+document.querySelector("[data-open-med-request]")?.addEventListener("click", () => medRequestDialog?.showModal());
+document.querySelector("[data-med-request-cancel]")?.addEventListener("click", () => medRequestDialog?.close());
+
+medRequestForm?.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const fd = new FormData(medRequestForm);
+  try {
+    await api("/api/patient/medication-requests", {
+      method: "POST",
+      body: JSON.stringify({
+        requestType: fd.get("requestType"),
+        requestedProduct: fd.get("requestedProduct"),
+        requestedForm: fd.get("requestedForm"),
+        requestedStrength: fd.get("requestedStrength"),
+        reason: fd.get("reason"),
+        notes: fd.get("notes"),
+      }),
+    });
+    notifyClinicUpdate();
+    medRequestDialog.close();
+    await refresh();
+    setView("scripts");
+    alert("Request submitted — admin will review and forward to your clinician.");
+  } catch (err) {
+    alert(err.message);
+  }
+});
 
 function renderAppointments() {
   const list = document.querySelector("[data-appointment-list]");

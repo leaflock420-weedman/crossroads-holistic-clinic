@@ -637,23 +637,48 @@ export function demoApi(path, options = {}, token) {
     return { ...data, mode: "demo" };
   }
 
-  if (pathname.startsWith("/api/patient/prescriptions/") && pathname.endsWith("/change-request") && method === "POST") {
-    const id = pathname.split("/")[4];
-    const rx = state.prescriptions.find((r) => r.id === id && r.patientId === session.user.id);
-    if (!rx) throw new Error("Prescription not found");
-    if (!["active", "reorder_requested"].includes(rx.status)) throw new Error("Only active scripts can be changed.");
-    if (state.changeRequests.some((c) => c.prescriptionId === id && c.status === "pending")) {
-      throw new Error("You already have a change request awaiting review.");
+  if (pathname === "/api/patient/medication-requests" && method === "POST") {
+    if (body.prescriptionId) {
+      const id = body.prescriptionId;
+      const rx = state.prescriptions.find((r) => r.id === id && r.patientId === session.user.id);
+      if (!rx) throw new Error("Prescription not found");
+      if (!["active", "reorder_requested"].includes(rx.status)) throw new Error("Only active scripts can be changed.");
+      if (state.changeRequests.some((c) => c.prescriptionId === id && ["pending", "with_doctor"].includes(c.status))) {
+        throw new Error("You already have a change request awaiting review.");
+      }
+      const req = {
+        id: uid("CHG"),
+        patientId: session.user.id,
+        prescriptionId: id,
+        requestType: body.requestType || "change",
+        currentName: rx.name,
+        currentForm: rx.form,
+        requestedForm: body.requestedForm || "",
+        requestedProduct: body.requestedProduct || "",
+        requestedStrength: body.requestedStrength || "",
+        reason: body.reason || "out_of_stock",
+        notes: body.notes || "",
+        status: "pending",
+        createdAt: new Date().toISOString(),
+      };
+      state.changeRequests.push(req);
+      saveDemoState(state);
+      return { ok: true, changeRequest: req, mode: "demo" };
+    }
+    if (state.changeRequests.some((c) => c.patientId === session.user.id && ["pending", "with_doctor"].includes(c.status))) {
+      throw new Error("You already have a medication request awaiting review.");
     }
     const req = {
       id: uid("CHG"),
       patientId: session.user.id,
-      prescriptionId: id,
-      currentName: rx.name,
-      currentForm: rx.form,
+      prescriptionId: null,
+      requestType: body.requestType || "new_medication",
+      currentName: null,
+      currentForm: null,
       requestedForm: body.requestedForm || "",
       requestedProduct: body.requestedProduct || "",
-      reason: body.reason || "out_of_stock",
+      requestedStrength: body.requestedStrength || "",
+      reason: body.reason || "patient_request",
       notes: body.notes || "",
       status: "pending",
       createdAt: new Date().toISOString(),
@@ -661,6 +686,13 @@ export function demoApi(path, options = {}, token) {
     state.changeRequests.push(req);
     saveDemoState(state);
     return { ok: true, changeRequest: req, mode: "demo" };
+  }
+
+  if (pathname.startsWith("/api/patient/prescriptions/") && pathname.endsWith("/change-request") && method === "POST") {
+    return demoApi("/api/patient/medication-requests", {
+      method: "POST",
+      body: JSON.stringify({ ...body, prescriptionId: pathname.split("/")[4], requestType: "change" }),
+    }, token);
   }
 
   if (pathname.startsWith("/api/patient/reorder/") && method === "POST") {
@@ -860,14 +892,32 @@ export function demoApi(path, options = {}, token) {
     const req = state.changeRequests.find((c) => c.id === id);
     if (!req) throw new Error("Change request not found");
     if (!["with_doctor", "pending"].includes(req.status)) throw new Error("Request already processed.");
-    const rx = state.prescriptions.find((r) => r.id === req.prescriptionId);
-    Object.assign(rx, {
-      name: body.name || req.requestedProduct || rx.name,
-      form: body.form || req.requestedForm || rx.form,
-      status: "pending_dispense",
-      submittedAt: new Date().toISOString(),
-      prescribedBy: session.user.id,
-    });
+    let rx = req.prescriptionId ? state.prescriptions.find((r) => r.id === req.prescriptionId) : null;
+    if (!rx) {
+      rx = {
+        id: uid("RX"),
+        patientId: req.patientId,
+        name: body.name || req.requestedProduct || "Patient requested medication",
+        form: body.form || req.requestedForm || "As prescribed",
+        repeats: Number(body.repeats ?? 5),
+        repeatsTotal: Number(body.repeats ?? 5),
+        status: "pending_dispense",
+        supplyDays: Number(body.supplyDays ?? 30),
+        intervalDays: Number(body.intervalDays ?? 30),
+        submittedAt: new Date().toISOString(),
+        prescribedBy: session.user.id,
+        notes: body.notes || req.notes || "",
+      };
+      state.prescriptions.push(rx);
+    } else {
+      Object.assign(rx, {
+        name: body.name || req.requestedProduct || rx.name,
+        form: body.form || req.requestedForm || rx.form,
+        status: "pending_dispense",
+        submittedAt: new Date().toISOString(),
+        prescribedBy: session.user.id,
+      });
+    }
     req.status = "approved";
     req.reviewedAt = new Date().toISOString();
     saveDemoState(state);
@@ -949,7 +999,79 @@ export function demoApi(path, options = {}, token) {
     return { ok: true, mode: "demo" };
   }
 
+  if (pathname.startsWith("/api/admin/patients/") && pathname.endsWith("/detail") && method === "GET") {
+    const id = pathname.split("/")[4];
+    const data = patientBundle(state, id);
+    if (!data) throw new Error("Patient not found");
+    const today = todayIso();
+    const upcoming = data.appointments
+      .filter(
+        (a) =>
+          a.status !== "cancelled" &&
+          a.telehealthStatus !== "completed" &&
+          a.date >= today
+      )
+      .sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`));
+    const timeline = [];
+    data.appointments.forEach((a) => {
+      if (a.createdAt) timeline.push({ at: a.createdAt, label: "Appointment scheduled", detail: `${a.date} ${a.time}` });
+      if (a.updatedAt) timeline.push({ at: a.updatedAt, label: "Call time updated", detail: `${a.date} ${a.time}` });
+    });
+    data.changeRequests.forEach((c) => {
+      timeline.push({ at: c.createdAt, label: "Medication request", detail: `${c.requestedProduct || ""} · ${c.status}` });
+    });
+    data.prescriptions.forEach((r) => {
+      if (r.submittedAt) timeline.push({ at: r.submittedAt, label: "Script submitted", detail: r.name });
+    });
+    timeline.sort((a, b) => new Date(b.at) - new Date(a.at));
+    return {
+      ...data,
+      timeline,
+      nextCallback: upcoming[0] || null,
+      upcomingAppointments: upcoming,
+      assignedDoctor: state.users[data.patient.assignedDoctorId] || null,
+      doctors: listDoctors(state),
+      mode: "demo",
+    };
+  }
+
+  if (pathname === "/api/admin/prescriptions" && method === "POST") {
+    const patient = state.patients[body.patientId];
+    if (!patient) throw new Error("Patient not found");
+    const rx = {
+      id: uid("RX"),
+      patientId: body.patientId,
+      name: body.name,
+      form: body.form || "",
+      repeats: Number(body.repeats ?? 5),
+      repeatsTotal: Number(body.repeats ?? 5),
+      status: "pending_dispense",
+      supplyDays: Number(body.supplyDays ?? 30),
+      intervalDays: Number(body.intervalDays ?? 30),
+      submittedAt: new Date().toISOString(),
+      prescribedBy: session.user.id,
+      notes: body.notes || "Added by admin.",
+    };
+    state.prescriptions.push(rx);
+    saveDemoState(state);
+    return { ok: true, prescription: rx, mode: "demo" };
+  }
+
   if (pathname === "/api/admin/overview" && session.role === "admin") {
+    const today = todayIso();
+    const upcomingCallbacks = state.appointments
+      .filter(
+        (a) =>
+          a.status !== "cancelled" &&
+          a.telehealthStatus !== "completed" &&
+          a.date >= today
+      )
+      .sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`))
+      .slice(0, 25)
+      .map((a) => ({
+        ...a,
+        patientName: state.patients[a.patientId]?.name || "Patient",
+      }));
     return {
       stats: {
         patients: Object.keys(state.patients).length,
@@ -968,6 +1090,7 @@ export function demoApi(path, options = {}, token) {
       orders: state.orders,
       doctors: listDoctors(state),
       telehealthLogs: [],
+      upcomingCallbacks,
       mode: "demo",
     };
   }

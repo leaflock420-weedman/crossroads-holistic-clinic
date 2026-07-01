@@ -67,7 +67,8 @@
           <div data-orders-list></div>
         </section>
 
-        <section class="portal-view" data-admin-view="patients" hidden>
+        <section class="portal-view admin-patients-layout" data-admin-view="patients" hidden>
+          <div class="admin-patients-layout__list">
           <div class="admin-panel">
             <h3>Add new patient</h3>
             <form class="flow-form admin-form-grid" data-add-patient-form>
@@ -91,9 +92,22 @@
             <p class="form-note" data-add-patient-result hidden></p>
           </div>
           <div class="admin-table-wrap" data-patients-table></div>
+          </div>
+          <aside class="admin-patient-hub" data-patient-hub hidden>
+            <header class="admin-patient-hub__head">
+              <div>
+                <p class="eyebrow">Patient profile</p>
+                <h2 data-hub-name>—</h2>
+                <p class="admin-patient-hub__status" data-hub-status></p>
+              </div>
+              <button type="button" class="crm-detail__close" data-close-hub aria-label="Close">×</button>
+            </header>
+            <div class="admin-patient-hub__scroll" data-hub-body></div>
+          </aside>
         </section>
 
         <section class="portal-view" data-admin-view="appointments" hidden>
+          <div class="admin-callbacks-panel" data-upcoming-callbacks></div>
           <div class="admin-table-wrap" data-appointments-table></div>
         </section>
       </div>

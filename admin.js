@@ -24,6 +24,8 @@ let overview = null;
 let stopPolling = null;
 let unsubscribeClinic = null;
 let activeView = "dispense";
+let hubPatientId = null;
+let hubDetail = null;
 
 function showLogin() {
   stopPolling?.();
@@ -99,6 +101,10 @@ async function loadOverview(opts = {}) {
   if (opts.forceAppointments || (activeView === "appointments" && !editingAppointments) || !document.querySelector("[data-appointments-table] tbody tr")) {
     renderAppointments();
   }
+  renderUpcomingCallbacks();
+  if (hubPatientId && !isEditingSection("[data-patient-hub]")) {
+    openPatientHub(hubPatientId).catch(() => closePatientHub());
+  }
 
   doctorSelects().forEach((sel) => {
     const current = sel.value;
@@ -110,10 +116,253 @@ function changeReasonLabel(reason) {
   const map = {
     out_of_stock: "Out of stock",
     side_effects: "Side effects",
+    tolerance: "Tolerance / effectiveness",
+    patient_request: "Patient request",
     preference: "Patient preference",
     other: "Other",
   };
   return map[reason] || reason || "Change requested";
+}
+
+function requestTypeLabel(type) {
+  const map = {
+    new_medication: "New medication",
+    strength_change: "Strength change",
+    change: "Medication change",
+  };
+  return map[type] || "Request";
+}
+
+function formatWhen(iso) {
+  if (!iso) return "—";
+  return new Date(iso).toLocaleString("en-AU", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function formatAptDate(date, time) {
+  if (!date) return "—";
+  const d = new Date(`${date}T${time || "12:00"}`);
+  return d.toLocaleDateString("en-AU", { weekday: "short", day: "numeric", month: "short" }) + (time ? ` · ${time}` : "");
+}
+
+function nextCallbackFor(patientId) {
+  const today = new Date().toISOString().slice(0, 10);
+  const apts = (overview?.appointments || [])
+    .filter(
+      (a) =>
+        a.patientId === patientId &&
+        a.status !== "cancelled" &&
+        a.telehealthStatus !== "completed" &&
+        a.date >= today
+    )
+    .sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`));
+  return apts[0] || null;
+}
+
+function closePatientHub() {
+  hubPatientId = null;
+  hubDetail = null;
+  document.querySelector("[data-patient-hub]")?.setAttribute("hidden", "");
+  document.querySelector(".admin-patients-layout")?.classList.remove("has-hub-open");
+}
+
+async function openPatientHub(patientId) {
+  hubPatientId = patientId;
+  const hub = document.querySelector("[data-patient-hub]");
+  hub?.removeAttribute("hidden");
+  document.querySelector(".admin-patients-layout")?.classList.add("has-hub-open");
+  hubDetail = await api(`/api/admin/patients/${patientId}/detail`);
+  renderPatientHub(hubDetail);
+}
+
+function renderPatientHub(data) {
+  const hub = document.querySelector("[data-patient-hub]");
+  const body = document.querySelector("[data-hub-body]");
+  if (!hub || !body || !data) return;
+  const p = data.patient;
+  document.querySelector("[data-hub-name]").textContent = p.name;
+  const next = data.nextCallback;
+  document.querySelector("[data-hub-status]").innerHTML = next
+    ? `Next call: <strong>${formatAptDate(next.date, next.time)}</strong> · ${next.clinician || doctorName(next.doctorId)} · ${next.telehealthStatus || "scheduled"}`
+    : `No upcoming call scheduled · ${p.stage || "—"}`;
+
+  const doctorOpts = (data.doctors || overview?.doctors || [])
+    .map((d) => `<option value="${d.id}" ${d.id === p.assignedDoctorId ? "selected" : ""}>${d.name}</option>`)
+    .join("");
+
+  body.innerHTML = `
+    <section class="admin-hub-section">
+      <h3>Profile &amp; delivery</h3>
+      <form class="flow-form admin-hub-form" data-hub-profile-form>
+        <div class="field-grid">
+          <label>Name <input name="name" value="${p.name || ""}" required /></label>
+          <label>Phone <input name="phone" value="${p.phone || ""}" /></label>
+        </div>
+        <label>Email <input type="email" name="email" value="${p.email || ""}" /></label>
+        <label>Street <input name="addressLine1" value="${p.addressLine1 || ""}" /></label>
+        <div class="field-grid">
+          <label>Suburb <input name="suburb" value="${p.suburb || ""}" /></label>
+          <label>Postcode <input name="postcode" value="${p.postcode || ""}" /></label>
+        </div>
+        <label>Assigned doctor
+          <select name="assignedDoctorId">${doctorOpts}</select>
+        </label>
+        <label>Support focus <input name="support" value="${p.support || ""}" /></label>
+        <button class="button primary" type="submit">Save profile</button>
+      </form>
+    </section>
+
+    <section class="admin-hub-section">
+      <h3>Upcoming callbacks</h3>
+      ${
+        data.upcomingAppointments?.length
+          ? data.upcomingAppointments
+              .map(
+                (a) => `
+        <article class="queue-card">
+          <div>
+            <strong>${formatAptDate(a.date, a.time)}</strong>
+            <p>${a.clinician || "—"} · ${a.type || "Consult"} · ${a.durationMinutes || 15} min</p>
+            <p class="queue-phone">Scheduled ${a.createdAt ? formatWhen(a.createdAt) : "—"}${a.updatedAt ? ` · Updated ${formatWhen(a.updatedAt)}` : ""}</p>
+          </div>
+          <span class="status-pill confirmed">${a.telehealthStatus || a.status}</span>
+        </article>`
+              )
+              .join("")
+          : `<p class="empty-state">No upcoming calls — schedule one below or from Appointments.</p>`
+      }
+    </section>
+
+    <section class="admin-hub-section">
+      <h3>Scripts</h3>
+      <div class="admin-hub-scripts">
+        ${(data.prescriptions || [])
+          .map(
+            (r) => `
+          <article class="queue-card">
+            <div><strong>${r.name}</strong><p>${r.form} · ${r.status}</p></div>
+          </article>`
+          )
+          .join("") || `<p class="empty-state">No scripts yet.</p>`}
+      </div>
+      <form class="flow-form admin-hub-form" data-hub-add-script>
+        <p class="form-note">Admin can add a script — goes to approval queue unless you release immediately.</p>
+        <label>Medication <input name="name" required placeholder="Product name" /></label>
+        <label>Form <input name="form" placeholder="Dried flower · 60g/month" /></label>
+        <div class="field-grid">
+          <label>Supply days <input name="supplyDays" type="number" value="30" min="1" /></label>
+          <label>Repeats <input name="repeats" type="number" value="5" min="0" /></label>
+        </div>
+        <button class="button ghost" type="submit">Add script to approval queue</button>
+      </form>
+    </section>
+
+    <section class="admin-hub-section">
+      <h3>Medication requests</h3>
+      ${(data.changeRequests || [])
+        .filter((c) => ["pending", "with_doctor"].includes(c.status))
+        .map(
+          (c) => `
+        <article class="queue-card">
+          <div>
+            <strong>${requestTypeLabel(c.requestType)}</strong>
+            <p>${c.requestedProduct || c.requestedForm || "—"}</p>
+            <p class="queue-phone">${changeReasonLabel(c.reason)} · ${c.status}${c.createdAt ? ` · ${formatWhen(c.createdAt)}` : ""}</p>
+          </div>
+        </article>`
+        )
+        .join("") || `<p class="empty-state">No open requests.</p>`}
+    </section>
+
+    <section class="admin-hub-section">
+      <h3>Timeline</h3>
+      <ol class="admin-timeline">
+        ${(data.timeline || [])
+          .slice(0, 12)
+          .map(
+            (e) => `
+          <li class="admin-timeline__item">
+            <time>${formatWhen(e.at)}</time>
+            <strong>${e.label}</strong>
+            <span>${e.detail || ""}</span>
+          </li>`
+          )
+          .join("")}
+      </ol>
+    </section>
+  `;
+
+  body.querySelector("[data-hub-profile-form]")?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    await api(`/api/admin/patients/${p.id}`, {
+      method: "PUT",
+      body: JSON.stringify(Object.fromEntries(fd.entries())),
+    });
+    notifyClinicUpdate();
+    await openPatientHub(p.id);
+    await loadOverview({ forcePatients: true });
+  });
+
+  body.querySelector("[data-hub-add-script]")?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    await api("/api/admin/prescriptions", {
+      method: "POST",
+      body: JSON.stringify({
+        patientId: p.id,
+        name: fd.get("name"),
+        form: fd.get("form"),
+        supplyDays: Number(fd.get("supplyDays")),
+        repeats: Number(fd.get("repeats")),
+        intervalDays: Number(fd.get("supplyDays")),
+      }),
+    });
+    notifyClinicUpdate();
+    e.target.reset();
+    await openPatientHub(p.id);
+    alert("Script added — visible in Approve queue.");
+  });
+}
+
+function renderUpcomingCallbacks() {
+  const el = document.querySelector("[data-upcoming-callbacks]");
+  if (!el) return;
+  const list = overview?.upcomingCallbacks || [];
+  el.innerHTML = `
+    <h3>Upcoming scheduled callbacks</h3>
+    <p class="view-intro">Every doctor call and patient booking in one place — sorted soonest first.</p>
+    ${
+      list.length
+        ? `<div class="admin-callbacks-grid">${list
+            .map(
+              (a) => `
+          <article class="queue-card queue-card--fresh">
+            <div>
+              <strong>${a.patientName}</strong>
+              <p>${formatAptDate(a.date, a.time)} · ${a.clinician || doctorName(a.doctorId)}</p>
+              <p class="queue-phone">${a.type || "Consult"} · ${a.durationMinutes || 15} min · Booked ${a.createdAt ? formatWhen(a.createdAt) : "—"}</p>
+            </div>
+            <div class="queue-card__actions">
+              <button class="button ghost" type="button" data-hub-from-callback="${a.patientId}">Open patient</button>
+            </div>
+          </article>`
+            )
+            .join("")}</div>`
+        : `<p class="empty-state">No upcoming callbacks scheduled.</p>`
+    }
+  `;
+  el.querySelectorAll("[data-hub-from-callback]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      setView("patients");
+      openPatientHub(btn.dataset.hubFromCallback);
+    });
+  });
 }
 
 function renderChangeRequests() {
@@ -137,8 +386,8 @@ function renderChangeRequests() {
         <article class="queue-card queue-card--fresh" data-change-row="${c.id}">
           <div>
             <strong>${patientName(c.patientId)}</strong>
-            <p>${c.currentName} · ${c.currentForm}</p>
-            <p>Requested: <strong>${c.requestedProduct || "Alternative"}</strong> · ${c.requestedForm || "—"}</p>
+            <p><span class="crm-tag">${requestTypeLabel(c.requestType)}</span> ${c.currentName ? `${c.currentName} · ${c.currentForm}` : "New request"}</p>
+            <p>Requested: <strong>${c.requestedProduct || "Alternative"}</strong> · ${c.requestedForm || "—"}${c.requestedStrength ? ` · ${c.requestedStrength}` : ""}</p>
             <p class="queue-phone">${changeReasonLabel(c.reason)} · ${c.notes || ""}</p>
           </div>
           <div class="queue-card__actions">
@@ -318,16 +567,18 @@ function renderOrders() {
 function renderPatients() {
   document.querySelector("[data-patients-table]").innerHTML = `
     <h3>All patients</h3>
+    <p class="view-intro">Open any patient for full profile, scripts, timeline, and next callback.</p>
     <table class="admin-table">
-      <thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>Assigned doctor</th><th>Stage</th><th></th></tr></thead>
+      <thead><tr><th>Name</th><th>Next call</th><th>Doctor</th><th>Stage</th><th></th></tr></thead>
       <tbody>
         ${overview.patients
           .map(
-            (p) => `
-          <tr data-patient-row="${p.id}">
-            <td>${p.name}</td>
-            <td>${p.email}</td>
-            <td>${p.phone || "—"}</td>
+            (p) => {
+              const next = nextCallbackFor(p.id);
+              return `
+          <tr data-patient-row="${p.id}" class="${hubPatientId === p.id ? "is-selected" : ""}">
+            <td><strong>${p.name}</strong><br /><span class="queue-phone">${p.email}</span></td>
+            <td>${next ? `${formatAptDate(next.date, next.time)}<br /><span class="queue-phone">${next.clinician || "—"}</span>` : "<span class=\"queue-phone\">None scheduled</span>"}</td>
             <td>
               <select class="admin-inline-select" data-assign-doctor="${p.id}">
                 <option value="">— Unassigned —</option>
@@ -336,16 +587,24 @@ function renderPatients() {
             </td>
             <td>${p.stage}</td>
             <td>
+              <button class="button primary" type="button" data-open-hub="${p.id}">Open</button>
               <button class="button ghost" type="button" data-save-patient="${p.id}">Save</button>
-              <button class="button ghost" type="button" data-call-patient="${p.id}">Call</button>
             </td>
           </tr>
-        `
+        `;
+            }
           )
           .join("")}
       </tbody>
     </table>
   `;
+
+  document.querySelectorAll("[data-open-hub]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      setView("patients");
+      openPatientHub(btn.dataset.openHub);
+    });
+  });
 
   document.querySelectorAll("[data-save-patient]").forEach((btn) => {
     btn.addEventListener("click", async () => {
@@ -418,7 +677,7 @@ function renderAppointments() {
               </select>
             </td>
             <td>${a.durationMinutes || 15} min · ${typeLabel}</td>
-            <td>${a.telehealthStatus || a.status}</td>
+            <td>${a.telehealthStatus || a.status}<br /><span class="queue-phone">${a.createdAt ? `Booked ${formatWhen(a.createdAt)}` : ""}</span></td>
             <td>
               <button class="button ghost" type="button" data-save-apt="${a.id}">Save</button>
               <button class="button primary" type="button" data-start-apt="${a.id}">Start call</button>
@@ -579,6 +838,7 @@ loginForm?.addEventListener("submit", async (e) => {
   }
 });
 
+document.querySelector("[data-close-hub]")?.addEventListener("click", closePatientHub);
 document.querySelector("[data-logout]")?.addEventListener("click", showLogin);
 document.querySelectorAll("[data-admin-nav] button").forEach((btn) => {
   btn.addEventListener("click", () => {
