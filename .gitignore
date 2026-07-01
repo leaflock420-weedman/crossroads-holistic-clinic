@@ -7,3 +7,6 @@ dist-static
 data/clinic-live.json
 .chrome-deploy-profile/
 render-*.png
+migrate-*.png
+migrate-report.json
+godaddy-*.png

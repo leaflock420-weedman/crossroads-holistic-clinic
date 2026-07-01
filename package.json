@@ -13,7 +13,8 @@
     "build:admin": "vite build && node scripts/prepare-static-portal.mjs admin",
     "start": "node server/index.js",
     "preview": "npm run build && npm start",
-    "deploy": "node scripts/render-deploy.mjs"
+    "deploy": "node scripts/render-deploy.mjs",
+    "migrate": "node scripts/render-migrate.mjs"
   },
   "dependencies": {
     "dotenv": "^16.4.7",
