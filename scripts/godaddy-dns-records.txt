@@ -1,0 +1,30 @@
+crossroads.clinic — GoDaddy DNS records for Render split portals
+================================================================
+Delete or edit any existing A/CNAME records for @, www, api, book, portal, doctor, admin first.
+Remove AAAA records if present (Render uses IPv4 only).
+
+TYPE    NAME      VALUE                              TTL
+----    ----      -----                              ---
+A       @         216.24.57.1                        600
+CNAME   www       crossroads-home.onrender.com       600
+CNAME   api       crossroads-api-u6nu.onrender.com   600
+CNAME   book      crossroads-book.onrender.com       600
+CNAME   portal    crossroads-portal.onrender.com     600
+CNAME   doctor    crossroads-doctor.onrender.com     600
+CNAME   admin     crossroads-admin.onrender.com      600
+
+Render custom domains to add (each service → Settings → Custom Domains):
+  crossroads-home   → crossroads.clinic, www.crossroads.clinic
+  crossroads-api    → api.crossroads.clinic
+  crossroads-book   → book.crossroads.clinic
+  crossroads-portal → portal.crossroads.clinic
+  crossroads-doctor → doctor.crossroads.clinic
+  crossroads-admin  → admin.crossroads.clinic
+
+After DNS propagates (5–30 min), your URLs:
+  https://crossroads.clinic          (home)
+  https://book.crossroads.clinic     (booking)
+  https://portal.crossroads.clinic   (patients)
+  https://doctor.crossroads.clinic   (doctors)
+  https://admin.crossroads.clinic    (admin)
+  https://api.crossroads.clinic      (API)

@@ -21,35 +21,17 @@ services:
       - key: DOCTOR_PASSWORD
         value: Doctor2026
       - key: PORTAL_URL_API
-        fromService:
-          type: web
-          name: crossroads-api
-          envVarKey: RENDER_EXTERNAL_URL
+        value: https://api.crossroads.clinic
       - key: PORTAL_URL_HOME
-        fromService:
-          type: web
-          name: crossroads-home
-          envVarKey: RENDER_EXTERNAL_URL
+        value: https://crossroads.clinic
       - key: PORTAL_URL_BOOK
-        fromService:
-          type: web
-          name: crossroads-book
-          envVarKey: RENDER_EXTERNAL_URL
+        value: https://book.crossroads.clinic
       - key: PORTAL_URL_PORTAL
-        fromService:
-          type: web
-          name: crossroads-portal
-          envVarKey: RENDER_EXTERNAL_URL
+        value: https://portal.crossroads.clinic
       - key: PORTAL_URL_DOCTOR
-        fromService:
-          type: web
-          name: crossroads-doctor
-          envVarKey: RENDER_EXTERNAL_URL
+        value: https://doctor.crossroads.clinic
       - key: PORTAL_URL_ADMIN
-        fromService:
-          type: web
-          name: crossroads-admin
-          envVarKey: RENDER_EXTERNAL_URL
+        value: https://admin.crossroads.clinic
 
   - type: web
     name: crossroads-home
@@ -58,10 +40,7 @@ services:
     staticPublishPath: ./dist-static/home
     envVars:
       - key: VITE_API_HOST
-        fromService:
-          type: web
-          name: crossroads-api
-          property: host
+        value: api.crossroads.clinic
 
   - type: web
     name: crossroads-book
@@ -70,10 +49,7 @@ services:
     staticPublishPath: ./dist-static/book
     envVars:
       - key: VITE_API_HOST
-        fromService:
-          type: web
-          name: crossroads-api
-          property: host
+        value: api.crossroads.clinic
 
   - type: web
     name: crossroads-portal
@@ -82,10 +58,7 @@ services:
     staticPublishPath: ./dist-static/portal
     envVars:
       - key: VITE_API_HOST
-        fromService:
-          type: web
-          name: crossroads-api
-          property: host
+        value: api.crossroads.clinic
 
   - type: web
     name: crossroads-doctor
@@ -94,10 +67,7 @@ services:
     staticPublishPath: ./dist-static/doctor
     envVars:
       - key: VITE_API_HOST
-        fromService:
-          type: web
-          name: crossroads-api
-          property: host
+        value: api.crossroads.clinic
 
   - type: web
     name: crossroads-admin
@@ -106,7 +76,4 @@ services:
     staticPublishPath: ./dist-static/admin
     envVars:
       - key: VITE_API_HOST
-        fromService:
-          type: web
-          name: crossroads-api
-          property: host
+        value: api.crossroads.clinic
