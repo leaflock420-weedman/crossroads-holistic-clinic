@@ -112,22 +112,23 @@
         <section class="flow-step" data-flow-step="2" hidden>
           <p class="eyebrow">Step 3 of 5</p>
           <h1>Book your consult</h1>
-          <p class="flow-lead">Pick a time for your $49 initial telehealth consult. 30 minutes · video or phone.</p>
+          <p class="flow-lead">Pick a clinician and available 15-minute phone consult slot.</p>
           <form class="flow-form" data-booking-form>
+            <label>
+              Clinician
+              <select name="doctorId" required data-doctor-select>
+                <option value="">Loading clinicians…</option>
+              </select>
+            </label>
             <label>
               Date
               <select name="date" required data-date-select></select>
             </label>
             <fieldset class="slot-picker">
-              <legend>Available times (AEST)</legend>
+              <legend>Available 15-minute times (AEST)</legend>
               <div class="slot-grid" data-slot-grid></div>
+              <p class="form-note" data-slots-hint hidden></p>
             </fieldset>
-            <label>
-              Clinician preference
-              <select name="clinician">
-                <option value="">First available</option>
-              </select>
-            </label>
             <div class="flow-summary" data-booking-preview hidden>
               <strong>Selected:</strong> <span data-booking-preview-text></span>
             </div>

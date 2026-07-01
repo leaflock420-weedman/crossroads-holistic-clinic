@@ -28,7 +28,19 @@ app.get("/api/health", (_req, res) => {
 });
 
 app.get("/api/config", (_req, res) => {
-  res.json({ consultFee: store.CONSULT_FEE });
+  res.json({ consultFee: store.CONSULT_FEE, appointmentMinutes: store.APPOINTMENT_MINUTES });
+});
+
+app.get("/api/doctors", (_req, res) => {
+  res.json({ doctors: store.listDoctors() });
+});
+
+app.get("/api/booking/slots", (req, res) => {
+  const { doctorId, date } = req.query;
+  if (!doctorId || !date) return res.status(400).json({ error: "doctorId and date required" });
+  const result = store.getBookingSlots(doctorId, date);
+  if (!result.ok) return res.status(404).json(result);
+  res.json(result);
 });
 
 app.post("/api/auth/login", (req, res) => {
@@ -108,6 +120,32 @@ app.post("/api/telehealth/complete", auth(["doctor", "admin"]), (req, res) => {
 
 app.get("/api/admin/overview", auth(["admin"]), (req, res) => {
   res.json(store.adminOverview());
+});
+
+app.post("/api/admin/patients", auth(["admin"]), (req, res) => {
+  const result = store.adminCreatePatient(req.body || {});
+  if (!result.ok) return res.status(400).json(result);
+  res.json(result);
+});
+
+app.post("/api/admin/prescriptions/:id/dispense", auth(["admin"]), (req, res) => {
+  const result = store.dispensePrescription(req.params.id, req.session.user.id);
+  if (!result.ok) return res.status(400).json(result);
+  res.json(result);
+});
+
+app.get("/api/doctor/availability", auth(["doctor", "admin"]), (req, res) => {
+  const doctorId = req.session.role === "doctor" ? req.session.user.id : req.query.doctorId;
+  const { date } = req.query;
+  if (!doctorId || !date) return res.status(400).json({ error: "doctorId and date required" });
+  res.json({ slots: store.getDoctorAvailability(doctorId, date) });
+});
+
+app.put("/api/doctor/availability", auth(["doctor"]), (req, res) => {
+  const { date, times } = req.body || {};
+  if (!date) return res.status(400).json({ error: "date required" });
+  const result = store.setDoctorAvailability(req.session.user.id, date, times || []);
+  res.json(result);
 });
 
 app.put("/api/admin/patients/:id", auth(["admin"]), (req, res) => {

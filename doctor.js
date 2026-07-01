@@ -1,3 +1,4 @@
+import { generateTimeSlots } from "./js/data.js";
 import { api, setToken, getToken, configureAuth, clearOtherPortalTokens } from "./js/api.js";
 
 configureAuth("doctor");
@@ -30,7 +31,7 @@ const STAGES = {
     label: "Wrap up",
     match: (item) =>
       item.appointment.telehealthStatus === "completed" ||
-      item.prescriptions.some((rx) => rx.status === "pending_review" || rx.status === "reorder_requested"),
+      item.prescriptions.some((rx) => ["pending_review", "pending_dispense", "reorder_requested"].includes(rx.status)),
   },
 };
 
@@ -49,7 +50,9 @@ function stageFor(item) {
   if (item.appointment.telehealthStatus === "in_progress") return "on-call";
   if (
     item.appointment.telehealthStatus === "completed" ||
-    item.prescriptions.some((rx) => rx.status === "pending_review" || rx.status === "reorder_requested")
+    item.prescriptions.some((rx) =>
+      ["pending_review", "pending_dispense", "reorder_requested"].includes(rx.status)
+    )
   ) {
     return "wrap-up";
   }
@@ -246,7 +249,7 @@ function showNewScript(patientId, appointmentId) {
   scriptForm.appointmentId.value = appointmentId || "";
   scriptForm.reset();
   scriptForm.patientId.value = patientId;
-  scriptForm.status.value = "active";
+  scriptForm.status.value = "pending_dispense";
   scriptForm.intervalDays.value = 28;
   scriptForm.repeats.value = 5;
 }
@@ -312,6 +315,71 @@ scriptForm?.addEventListener("submit", async (e) => {
 
   await loadQueue();
   await openDetail(fd.get("patientId"), fd.get("appointmentId"), { silent: true });
+  alert("Script submitted to admin — it will appear in the patient portal once dispensed.");
+});
+
+const availabilityDate = document.querySelector("[data-availability-date]");
+const availabilityGrid = document.querySelector("[data-availability-grid]");
+const ALL_SLOTS = generateTimeSlots();
+let selectedAvailability = new Set();
+
+function showDoctorView(name) {
+  document.querySelectorAll("[data-doctor-panel]").forEach((panel) => {
+    const on = panel.dataset.doctorPanel === name;
+    panel.hidden = !on;
+  });
+  document.querySelectorAll("[data-show-view]").forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.showView === name);
+  });
+  document.querySelector(".crm-header__intro h1").textContent =
+    name === "calendar" ? "My availability" : "Consult pipeline";
+  if (name === "calendar") loadAvailability();
+}
+
+async function loadAvailability() {
+  if (!availabilityDate) return;
+  if (!availabilityDate.value) {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    availabilityDate.value = d.toISOString().slice(0, 10);
+  }
+  const data = await api(`/api/doctor/availability?date=${availabilityDate.value}`);
+  selectedAvailability = new Set((data.slots || []).map((s) => s.time));
+  renderAvailabilityGrid();
+}
+
+function renderAvailabilityGrid() {
+  if (!availabilityGrid) return;
+  availabilityGrid.innerHTML = ALL_SLOTS.map((time) => {
+    const on = selectedAvailability.has(time);
+    return `<label class="slot${on ? " is-open" : ""}">
+      <input type="checkbox" value="${time}" ${on ? "checked" : ""} data-availability-slot />
+      <span>${time}</span>
+    </label>`;
+  }).join("");
+  availabilityGrid.querySelectorAll("[data-availability-slot]").forEach((input) => {
+    input.addEventListener("change", () => {
+      if (input.checked) selectedAvailability.add(input.value);
+      else selectedAvailability.delete(input.value);
+      input.closest(".slot")?.classList.toggle("is-open", input.checked);
+    });
+  });
+}
+
+document.querySelectorAll("[data-show-view]").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    if (btn.dataset.showView === "pipeline") loadQueue();
+    showDoctorView(btn.dataset.showView);
+  });
+});
+
+availabilityDate?.addEventListener("change", loadAvailability);
+document.querySelector("[data-save-availability]")?.addEventListener("click", async () => {
+  await api("/api/doctor/availability", {
+    method: "PUT",
+    body: JSON.stringify({ date: availabilityDate.value, times: [...selectedAvailability] }),
+  });
+  alert("Availability saved — open slots are now bookable.");
 });
 
 loginForm?.addEventListener("submit", async (e) => {
@@ -337,7 +405,6 @@ loginForm?.addEventListener("submit", async (e) => {
 });
 
 document.querySelector("[data-logout]")?.addEventListener("click", showLogin);
-document.querySelector("[data-refresh-queue]")?.addEventListener("click", loadQueue);
 document.querySelector("[data-close-detail]")?.addEventListener("click", closeDetail);
 searchInput?.addEventListener("input", () => {
   searchQuery = searchInput.value;

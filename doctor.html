@@ -35,7 +35,8 @@
         <a class="brand crm-sidebar__brand" href="/"><span>Crossroads</span></a>
         <p class="crm-sidebar__user" data-sidebar-name></p>
         <nav class="crm-sidebar__nav">
-          <button type="button" class="active" data-refresh-queue>Today's pipeline</button>
+          <button type="button" class="active" data-show-view="pipeline">Today's pipeline</button>
+          <button type="button" data-show-view="calendar">My availability</button>
           <a href="/admin.html">Admin control</a>
         </nav>
         <button type="button" class="portal-logout" data-logout>Sign out</button>
@@ -54,7 +55,16 @@
           </label>
         </header>
 
-        <div class="crm-layout">
+        <section class="crm-calendar" data-doctor-panel="calendar" hidden>
+          <p class="view-intro">Mark 15-minute slots you're free. Open times appear when patients book.</p>
+          <div class="crm-calendar__toolbar">
+            <label>Date <input type="date" data-availability-date /></label>
+            <button class="button primary" type="button" data-save-availability>Save availability</button>
+          </div>
+          <div class="slot-grid crm-availability-grid" data-availability-grid></div>
+        </section>
+
+        <div class="crm-layout" data-doctor-panel="pipeline">
           <div class="crm-board" data-board>
             <section class="crm-column" data-column="up-next">
               <header class="crm-column__head">
@@ -112,15 +122,10 @@
                     <label>Repeats left <input name="repeats" type="number" min="0" max="10" /></label>
                     <label>Interval (days) <input name="intervalDays" type="number" min="7" max="90" /></label>
                   </div>
-                  <label>Status
-                    <select name="status">
-                      <option value="pending_review">Pending review</option>
-                      <option value="active">Active</option>
-                      <option value="reorder_requested">Reorder requested</option>
-                    </select>
-                  </label>
+                  <input type="hidden" name="status" value="pending_dispense" />
+                  <p class="form-note">Saving sends the script to admin for dispense — patients see it once released.</p>
                   <label>Notes <textarea name="notes" rows="3"></textarea></label>
-                  <button class="button primary full" type="submit">Save script</button>
+                  <button class="button primary full" type="submit">Submit for admin dispense</button>
                 </form>
                 <button class="button ghost full" type="button" data-new-script hidden>Add new script</button>
               </section>

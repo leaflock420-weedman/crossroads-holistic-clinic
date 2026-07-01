@@ -5,6 +5,7 @@ const crypto = require("crypto");
 const DATA_DIR = path.join(__dirname, "..", "data");
 const DATA_FILE = path.join(DATA_DIR, "clinic-live.json");
 const CONSULT_FEE = 49;
+const APPOINTMENT_MINUTES = 15;
 
 function uid(prefix = "CR") {
   return `${prefix}-${Date.now().toString(36).toUpperCase()}`;
@@ -22,6 +23,7 @@ function defaultState() {
     appointments: [],
     orders: [],
     telehealthLogs: [],
+    availability: [],
     sessions: {},
   };
 }
@@ -133,16 +135,21 @@ function registerPatient(payload) {
   state.patients.push(patient);
 
   if (payload.appointment) {
+    const doctor = resolveDoctor(payload.appointment.doctorId || payload.assignedDoctorId, payload.appointment.clinician);
     state.appointments.push({
       id: uid("APT"),
       patientId: patient.id,
       ...payload.appointment,
+      doctorId: doctor?.id || payload.appointment.doctorId || null,
+      clinician: doctor?.name || payload.appointment.clinician || "First available",
+      durationMinutes: APPOINTMENT_MINUTES,
       status: "confirmed",
       type: "Initial consult",
       fee: CONSULT_FEE,
       format: payload.appointment.format || "Phone consult",
       telehealthStatus: "scheduled",
     });
+    if (doctor) patient.assignedDoctorId = doctor.id;
   }
 
   state.prescriptions.push({
@@ -180,21 +187,51 @@ function listPatients() {
   return state.patients.map(sanitizePatient);
 }
 
+function resolveDoctor(doctorId, clinicianName) {
+  if (doctorId) return state.users.find((u) => u.id === doctorId && u.role === "doctor") || null;
+  if (!clinicianName) return null;
+  return state.users.find((u) => u.role === "doctor" && u.name === clinicianName) || null;
+}
+
 function updatePrescription(id, patch, actorId) {
   const rx = state.prescriptions.find((r) => r.id === id);
   if (!rx) return { ok: false, error: "Prescription not found." };
-  Object.assign(rx, patch, { updatedAt: new Date().toISOString(), prescribedBy: actorId });
-  if (patch.status === "active" && !rx.prescribedAt) {
-    rx.prescribedAt = new Date().toISOString();
-    if (!rx.nextReorderAt) {
-      rx.nextReorderAt = new Date(Date.now() + (rx.intervalDays || 28) * 86400000).toISOString();
-    }
+  const actor = state.users.find((u) => u.id === actorId);
+  const nextPatch = { ...patch };
+  if (actor?.role === "doctor" && nextPatch.status === "active") {
+    nextPatch.status = "pending_dispense";
+  }
+  Object.assign(rx, nextPatch, { updatedAt: new Date().toISOString(), prescribedBy: actorId });
+  if (nextPatch.status === "pending_dispense") {
+    rx.submittedAt = new Date().toISOString();
+  }
+  persist();
+  return { ok: true, prescription: rx };
+}
+
+function dispensePrescription(id, actorId) {
+  const rx = state.prescriptions.find((r) => r.id === id);
+  if (!rx) return { ok: false, error: "Prescription not found." };
+  if (!["pending_dispense", "pending_review", "reorder_requested"].includes(rx.status)) {
+    return { ok: false, error: "Script is not awaiting dispense." };
+  }
+  rx.status = "active";
+  rx.dispensedAt = new Date().toISOString();
+  rx.dispensedBy = actorId;
+  if (!rx.prescribedAt) rx.prescribedAt = rx.dispensedAt;
+  if (!rx.nextReorderAt) {
+    rx.nextReorderAt = new Date(Date.now() + (rx.intervalDays || 28) * 86400000).toISOString();
   }
   persist();
   return { ok: true, prescription: rx };
 }
 
 function createPrescription(patientId, data, actorId) {
+  const actor = state.users.find((u) => u.id === actorId);
+  let status = data.status || "pending_dispense";
+  if (actor?.role === "doctor" && status === "active") status = "pending_dispense";
+  if (actor?.role === "admin" && data.releaseNow) status = "active";
+
   const rx = {
     id: uid("RX"),
     patientId,
@@ -202,13 +239,20 @@ function createPrescription(patientId, data, actorId) {
     form: data.form || "",
     repeats: Number(data.repeats ?? 5),
     repeatsTotal: Number(data.repeatsTotal ?? 5),
-    status: data.status || "active",
+    status,
     intervalDays: Number(data.intervalDays ?? 28),
-    nextReorderAt: data.nextReorderAt || new Date(Date.now() + Number(data.intervalDays ?? 28) * 86400000).toISOString(),
-    prescribedAt: new Date().toISOString(),
+    nextReorderAt: status === "active"
+      ? data.nextReorderAt || new Date(Date.now() + Number(data.intervalDays ?? 28) * 86400000).toISOString()
+      : null,
+    prescribedAt: status === "active" ? new Date().toISOString() : null,
     prescribedBy: actorId,
+    submittedAt: new Date().toISOString(),
     notes: data.notes || "",
   };
+  if (status === "active") {
+    rx.dispensedAt = new Date().toISOString();
+    rx.dispensedBy = actorId;
+  }
   state.prescriptions.push(rx);
   persist();
   return { ok: true, prescription: rx };
@@ -286,6 +330,83 @@ function placeOrder(patientId, items) {
   return { ok: true, order };
 }
 
+function listDoctors() {
+  return state.users.filter((u) => u.role === "doctor").map(sanitizeUser);
+}
+
+function getDoctorAvailability(doctorId, date) {
+  return state.availability.filter((s) => s.doctorId === doctorId && s.date === date);
+}
+
+function setDoctorAvailability(doctorId, date, times) {
+  state.availability = state.availability.filter((s) => !(s.doctorId === doctorId && s.date === date));
+  const unique = [...new Set(times || [])];
+  unique.forEach((time) => {
+    state.availability.push({ id: uid("AVL"), doctorId, date, time, durationMinutes: APPOINTMENT_MINUTES });
+  });
+  persist();
+  return { ok: true, slots: getDoctorAvailability(doctorId, date) };
+}
+
+function getBookedTimes(doctorId, date) {
+  return state.appointments
+    .filter((a) => a.date === date && a.status !== "cancelled" && (a.doctorId === doctorId || resolveDoctor(a.doctorId, a.clinician)?.id === doctorId))
+    .map((a) => a.time);
+}
+
+function getBookingSlots(doctorId, date) {
+  const doctor = state.users.find((u) => u.id === doctorId && u.role === "doctor");
+  if (!doctor) return { ok: false, error: "Doctor not found." };
+  const open = getDoctorAvailability(doctorId, date).map((s) => s.time);
+  const booked = getBookedTimes(doctorId, date);
+  const available = open.filter((t) => !booked.includes(t)).sort();
+  return { ok: true, doctor: sanitizeUser(doctor), date, available, booked };
+}
+
+function adminCreatePatient(payload) {
+  const exists = state.patients.some((p) => p.email.toLowerCase() === String(payload.email || "").toLowerCase());
+  if (exists) return { ok: false, error: "An account with this email already exists." };
+
+  const password = payload.password || generateTempPassword();
+  const doctor = payload.assignedDoctorId ? resolveDoctor(payload.assignedDoctorId) : null;
+  const patient = {
+    id: uid("PT"),
+    role: "patient",
+    createdAt: new Date().toISOString(),
+    name: payload.name,
+    email: String(payload.email).toLowerCase(),
+    phone: payload.phone || "",
+    state: payload.state || "",
+    support: payload.support || "",
+    passwordHash: hashPassword(password),
+    paid: Boolean(payload.paid ?? true),
+    paidAt: payload.paid !== false ? new Date().toISOString() : null,
+    stage: payload.paid === false ? "Awaiting payment" : "Portal active",
+    assignedDoctorId: doctor?.id || payload.assignedDoctorId || null,
+  };
+  state.patients.push(patient);
+
+  if (payload.createPendingScript !== false) {
+    state.prescriptions.push({
+      id: uid("RX"),
+      patientId: patient.id,
+      name: payload.scriptName || "Treatment plan pending review",
+      form: payload.scriptForm || "As prescribed after consult",
+      repeats: 0,
+      repeatsTotal: 5,
+      status: "pending_review",
+      intervalDays: 28,
+      nextReorderAt: null,
+      prescribedAt: null,
+      prescribedBy: doctor?.id || null,
+      notes: "Awaiting clinician consult.",
+    });
+  }
+
+  persist();
+  return { ok: true, patient: sanitizePatient(patient), password };
+}
+
 function adminOverview() {
   return {
     stats: {
@@ -293,6 +414,7 @@ function adminOverview() {
       appointments: state.appointments.length,
       prescriptions: state.prescriptions.length,
       reorderRequests: state.prescriptions.filter((r) => r.status === "reorder_requested").length,
+      pendingDispense: state.prescriptions.filter((r) => r.status === "pending_dispense").length,
       orders: state.orders.length,
     },
     patients: listPatients(),
@@ -325,11 +447,14 @@ function doctorQueue(doctorId) {
   const today = new Date().toISOString().slice(0, 10);
   const appointments = state.appointments
     .filter((a) => {
+      const patient = state.patients.find((p) => p.id === a.patientId);
+      const assigned = patient?.assignedDoctorId === doctorId || a.doctorId === doctorId || a.clinician === doctor?.name;
+      if (!assigned && doctor?.role === "doctor") return false;
       if (a.telehealthStatus === "in_progress") return true;
       if (a.status === "confirmed" && a.telehealthStatus !== "completed") return true;
       if (a.telehealthStatus === "completed" && a.date === today) return true;
       const pendingRx = state.prescriptions.some(
-        (r) => r.patientId === a.patientId && (r.status === "pending_review" || r.status === "reorder_requested")
+        (r) => r.patientId === a.patientId && (r.status === "pending_review" || r.status === "pending_dispense" || r.status === "reorder_requested")
       );
       return pendingRx && a.date >= today;
     })
@@ -374,6 +499,19 @@ function upsertStaffUser({ role, name, email, phone, password }) {
     user.role = role;
   }
   return user;
+}
+
+function seedDoctorAvailability(doctorId) {
+  const slots = ["09:00", "09:15", "09:30", "09:45", "10:00", "10:15", "10:30", "10:45", "11:00", "11:15", "11:30",
+    "13:00", "13:15", "13:30", "13:45", "14:00", "14:15", "14:30", "14:45", "15:00", "15:15", "15:30", "15:45", "16:00"];
+  for (let i = 1; i <= 14; i++) {
+    const d = new Date();
+    d.setDate(d.getDate() + i);
+    if (d.getDay() === 0 || d.getDay() === 6) continue;
+    const date = d.toISOString().slice(0, 10);
+    const has = state.availability.some((s) => s.doctorId === doctorId && s.date === date);
+    if (!has) setDoctorAvailability(doctorId, date, slots);
+  }
 }
 
 function ensureDemoPatient(doctor) {
@@ -430,6 +568,8 @@ function ensureDemoPatient(doctor) {
       status: "confirmed",
       type: "Follow-up consult",
       fee: CONSULT_FEE,
+      doctorId: doctor.id,
+      durationMinutes: APPOINTMENT_MINUTES,
       telehealthStatus: "scheduled",
     },
     {
@@ -438,10 +578,12 @@ function ensureDemoPatient(doctor) {
       date: followUpIso,
       time: "10:00",
       clinician: doctor.name,
+      doctorId: doctor.id,
       format: "Phone consult",
       status: "confirmed",
       type: "Interval check-in",
       fee: CONSULT_FEE,
+      durationMinutes: APPOINTMENT_MINUTES,
       telehealthStatus: "scheduled",
     }
   );
@@ -475,6 +617,21 @@ function ensureDemoPatient(doctor) {
       nextReorderAt: new Date(Date.now() + 26 * 86400000).toISOString(),
       prescribedBy: doctor.id,
       notes: "Pending pharmacy dispatch — visible in admin queue.",
+    },
+    {
+      id: uid("RX"),
+      patientId: patient.id,
+      name: "Evening calm — Capsules",
+      form: "Capsules · 30 pack",
+      repeats: 5,
+      repeatsTotal: 5,
+      status: "pending_dispense",
+      intervalDays: 28,
+      prescribedAt: null,
+      nextReorderAt: null,
+      prescribedBy: doctor.id,
+      submittedAt: new Date(Date.now() - 3600000).toISOString(),
+      notes: "Doctor submitted — awaiting admin dispense.",
     }
   );
 
@@ -513,7 +670,16 @@ function ensureDemoAccounts() {
     password: doctorPassword,
   });
 
+  upsertStaffUser({
+    role: "doctor",
+    name: "Dr Nguyen",
+    email: "dr.nguyen@crossroads.clinic",
+    phone: "0411 444 555",
+    password: doctorPassword,
+  });
+
   ensureDemoPatient(doctor);
+  seedDoctorAvailability(doctor.id);
   persist();
 
   console.log("Demo accounts ready:");
@@ -526,21 +692,28 @@ ensureDemoAccounts();
 
 module.exports = {
   CONSULT_FEE,
+  APPOINTMENT_MINUTES,
   login,
   clearToken,
   getSession,
   registerPatient,
   getPatientBundle,
   listPatients,
+  listDoctors,
   updatePrescription,
   createPrescription,
+  dispensePrescription,
   startTelehealth,
   completeTelehealth,
   requestReorder,
   placeOrder,
   adminOverview,
+  adminCreatePatient,
   updatePatient,
   updateAppointment,
   doctorQueue,
+  getBookingSlots,
+  getDoctorAvailability,
+  setDoctorAvailability,
   sanitizePatient,
 };

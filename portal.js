@@ -21,6 +21,10 @@ const TITLES = {
 };
 
 let patientData = null;
+
+function visiblePrescriptions(list) {
+  return (list || []).filter((r) => r.status === "active" || r.status === "reorder_requested");
+}
 let cart = [];
 
 function showLogin(clear = true) {
@@ -73,8 +77,9 @@ function renderOverview() {
 
   const today = new Date().toISOString().slice(0, 10);
   const upcoming = appointments.find((a) => a.date >= today && a.status !== "completed");
-  const activeRx = prescriptions.filter((r) => r.status !== "pending_review");
-  const readyRx = prescriptions.filter(isReorderReady);
+  const visible = visiblePrescriptions(prescriptions);
+  const activeRx = visible.filter((r) => r.status === "active");
+  const readyRx = activeRx.filter(isReorderReady);
 
   stats.innerHTML = `
     <article class="stat"><strong>${appointments.length}</strong><span>Appointments</span></article>
@@ -94,7 +99,7 @@ function renderOverview() {
     nextApt.innerHTML = `<p class="eyebrow">Next consult</p><h3>No upcoming booking</h3><p><a href="/start.html">Book a consult</a></p>`;
   }
 
-  const rx = prescriptions[0];
+  const rx = visiblePrescriptions(prescriptions)[0];
   if (!rx) {
     scriptSum.innerHTML = `<p class="eyebrow">Scripts</p><h3>None yet</h3><p>Updated after your clinician review.</p>`;
     return;
@@ -121,10 +126,10 @@ function renderOverview() {
 
 function renderScripts() {
   const list = document.querySelector("[data-script-list]");
-  const { prescriptions } = patientData;
+  const prescriptions = visiblePrescriptions(patientData.prescriptions);
 
   if (!prescriptions.length) {
-    list.innerHTML = `<p class="empty-state">No scripts on file yet.</p>`;
+    list.innerHTML = `<p class="empty-state">No released scripts yet. Your clinician and admin team will publish them here after review.</p>`;
     return;
   }
 

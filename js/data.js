@@ -49,10 +49,19 @@ export const PRODUCTS = [
   },
 ];
 
-export const TIME_SLOTS = [
-  "09:00", "09:30", "10:00", "10:30", "11:00", "11:30",
-  "13:00", "13:30", "14:00", "14:30", "15:00", "15:30", "16:00",
-];
+export const APPOINTMENT_MINUTES = 15;
+
+export function generateTimeSlots(startHour = 9, endHour = 17, stepMinutes = APPOINTMENT_MINUTES) {
+  const slots = [];
+  for (let h = startHour; h < endHour; h++) {
+    for (let m = 0; m < 60; m += stepMinutes) {
+      slots.push(`${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`);
+    }
+  }
+  return slots;
+}
+
+export const TIME_SLOTS = generateTimeSlots();
 
 export function getAvailableDates(count = 14) {
   const dates = [];
