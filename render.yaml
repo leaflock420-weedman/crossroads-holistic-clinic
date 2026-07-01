@@ -5,6 +5,31 @@ services:
     buildCommand: npm install && npm run build
     startCommand: npm start
     pullRequestPreviewsEnabled: true
+    routes:
+      - type: rewrite
+        source: /admin
+        destination: /admin.html
+      - type: rewrite
+        source: /admin/
+        destination: /admin.html
+      - type: rewrite
+        source: /doctor
+        destination: /doctor.html
+      - type: rewrite
+        source: /doctor/
+        destination: /doctor.html
+      - type: rewrite
+        source: /portal
+        destination: /portal.html
+      - type: rewrite
+        source: /portal/
+        destination: /portal.html
+      - type: rewrite
+        source: /start
+        destination: /start.html
+      - type: rewrite
+        source: /start/
+        destination: /start.html
     envVars:
       - key: NODE_ENV
         value: production
