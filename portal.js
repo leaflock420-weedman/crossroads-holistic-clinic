@@ -1,5 +1,5 @@
 import { PRODUCTS } from "./js/data.js";
-import { api, setToken, getToken, configureAuth, clearOtherPortalTokens, isReorderReady, daysUntilReorder } from "./js/api.js";
+import { api, setToken, getToken, configureAuth, clearOtherPortalTokens, isReorderReady, daysUntilReorder, isDemoMode } from "./js/api.js";
 
 configureAuth("patient");
 
@@ -32,6 +32,19 @@ function showLogin(clear = true) {
 function showApp() {
   loginView.hidden = true;
   appView.hidden = false;
+  let banner = document.querySelector("[data-demo-banner]");
+  if (isDemoMode()) {
+    if (!banner) {
+      banner = document.createElement("p");
+      banner.dataset.demoBanner = "";
+      banner.className = "demo-mode-banner";
+      banner.textContent = "Demo mode — data is simulated locally until the server API is live.";
+      appView.prepend(banner);
+    }
+    banner.hidden = false;
+  } else if (banner) {
+    banner.hidden = true;
+  }
 }
 
 function setView(name) {

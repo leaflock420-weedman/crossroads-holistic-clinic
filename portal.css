@@ -309,6 +309,17 @@
   font-weight: 800;
 }
 
+.demo-mode-banner {
+  margin: 0 0 16px;
+  padding: 10px 14px;
+  color: #f5d76e;
+  background: rgba(245, 215, 110, 0.1);
+  border: 1px solid rgba(245, 215, 110, 0.25);
+  border-radius: 8px;
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+
 /* ── Portal app layout ── */
 
 .portal-app {
