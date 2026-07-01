@@ -1,3 +1,7 @@
+import { initSiteLinks } from "./js/sites.js";
+
+initSiteLinks();
+
 const toggle = document.querySelector("[data-menu-toggle]");
 const nav = document.querySelector("[data-nav]");
 

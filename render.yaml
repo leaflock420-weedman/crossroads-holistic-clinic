@@ -1,4 +1,6 @@
-# Single Web Service — API + frontend. Do NOT also deploy a Static Site on this URL.
+# Single Web Service — API + all portals. Do NOT also deploy a Static Site on this URL.
+# Custom domains (add all in Render → Settings → Custom Domains, same service):
+#   crossroads.clinic, www.crossroads.clinic, book., portal., doctor., admin., api.
 services:
   - type: web
     name: crossroads-holistic-clinic
@@ -11,6 +13,8 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
+      - key: CLINIC_DOMAIN
+        value: crossroads.clinic
       - key: ADMIN_PASSWORD
         value: CrossroadsAdmin2026
       - key: DOCTOR_PASSWORD

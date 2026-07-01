@@ -2,8 +2,15 @@ import { PRODUCTS } from "./js/data.js";
 import { api, setToken, getToken, configureAuth, clearOtherPortalTokens, isReorderReady, daysUntilReorder } from "./js/api.js";
 import { notifyClinicUpdate, onClinicUpdate, startPolling } from "./js/sync.js";
 import { mountConnectionBanner } from "./js/connection.js";
+import { getSites, siteHref, initSiteLinks } from "./js/sites.js";
 
 configureAuth("patient");
+
+let bookUrl = "/start.html";
+getSites().then((sites) => {
+  bookUrl = siteHref(sites, "book");
+  initSiteLinks();
+});
 
 const loginView = document.querySelector("[data-login-view]");
 const appView = document.querySelector("[data-app-view]");
@@ -116,7 +123,7 @@ function renderOverview() {
       <span class="status-pill confirmed">${upcoming.telehealthStatus || upcoming.status}</span>
     `;
   } else {
-    nextApt.innerHTML = `<p class="eyebrow">Next consult</p><h3>No booking yet</h3><p><a href="/start.html">Book a consult</a></p>`;
+    nextApt.innerHTML = `<p class="eyebrow">Next consult</p><h3>No booking yet</h3><p><a href="${bookUrl}">Book a consult</a></p>`;
   }
 
   const rx = visible[0];
@@ -256,7 +263,7 @@ function renderAppointments() {
   const { appointments } = patientData;
 
   if (!appointments.length) {
-    list.innerHTML = `<p class="empty-state">No appointments yet. <a href="/start.html">Book your consult</a></p>`;
+    list.innerHTML = `<p class="empty-state">No appointments yet. <a href="${bookUrl}">Book your consult</a></p>`;
     return;
   }
 

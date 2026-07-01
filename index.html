@@ -20,8 +20,8 @@
         <img class="brand-wordmark crossroads-logo" src="/crossroads-wordmark-transparent.png" alt="Crossroads" height="32" />
       </a>
       <nav class="site-nav site-nav--minimal" id="site-nav" data-nav>
-        <a href="/portal.html">Login</a>
-        <a class="nav-cta" href="/start.html">Book consult</a>
+        <a href="/portal.html" data-site="portal">Login</a>
+        <a class="nav-cta" href="/start.html" data-site="book">Book consult</a>
       </nav>
       <button class="menu-toggle" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="site-nav" data-menu-toggle>
         <span></span>
@@ -43,8 +43,8 @@
           A few quick questions, book a time, pay $49, and your patient portal is ready — scripts, appointments, and reorders in one place.
         </p>
         <div class="landing-hero__actions">
-          <a class="button primary" href="/start.html">Book consult — $49</a>
-          <a class="button ghost" href="/portal.html">Patient login</a>
+          <a class="button primary" href="/start.html" data-site="book">Book consult — $49</a>
+          <a class="button ghost" href="/portal.html" data-site="portal">Patient login</a>
         </div>
         <p class="landing-hero__meta">30-minute telehealth · Portal access included · Australia-wide</p>
       </section>
@@ -95,16 +95,16 @@
         </details>
         <details>
           <summary>Already booked?</summary>
-          <p><a href="/portal.html">Sign in to your patient portal</a> to view appointments, scripts, and products.</p>
+          <p><a href="/portal.html" data-site="portal">Sign in to your patient portal</a> to view appointments, scripts, and products.</p>
         </details>
         <details>
           <summary>Want to try the demo?</summary>
           <p>
-            Patients (<code>demo1234</code>): <a href="/portal.html"><code>demo@</code></a>,
+            Patients (<code>demo1234</code>): <a href="/portal.html" data-site="portal"><code>demo@</code></a>,
             <code>alex@</code>, <code>sam@</code>, <code>morgan@crossroads.clinic</code> —
-            Doctors (<code>Doctor2026</code>): <a href="/doctor.html"><code>dr.patel@</code></a>,
+            Doctors (<code>Doctor2026</code>): <a href="/doctor.html" data-site="doctor"><code>dr.patel@</code></a>,
             <code>dr.nguyen@crossroads.clinic</code> —
-            Admin: <a href="/admin.html"><code>admin@crossroads.clinic</code></a> / <code>CrossroadsAdmin2026</code>
+            Admin: <a href="/admin.html" data-site="admin"><code>admin@crossroads.clinic</code></a> / <code>CrossroadsAdmin2026</code>
           </p>
         </details>
       </section>
@@ -113,10 +113,10 @@
     <footer class="site-footer site-footer--minimal">
       <p>General information only — not emergency care or medical advice.</p>
       <p>
-        <a href="/portal.html">Patient portal</a> ·
-        <a href="/start.html">Book consult</a> ·
-        <a href="/doctor.html">Clinician</a> ·
-        <a href="/admin.html">Admin</a>
+        <a href="/portal.html" data-site="portal">Patient portal</a> ·
+        <a href="/start.html" data-site="book">Book consult</a> ·
+        <a href="/doctor.html" data-site="doctor">Clinician</a> ·
+        <a href="/admin.html" data-site="admin">Admin</a>
       </p>
     </footer>
 

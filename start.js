@@ -1,5 +1,8 @@
 import { getAvailableDates } from "./js/data.js";
 import { api, setToken } from "./js/api.js";
+import { initSiteLinks } from "./js/sites.js";
+
+initSiteLinks();
 
 const CONSULT_FEE = 49;
 

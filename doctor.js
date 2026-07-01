@@ -2,8 +2,10 @@ import { generateTimeSlots } from "./js/data.js";
 import { api, setToken, getToken, configureAuth, clearOtherPortalTokens } from "./js/api.js";
 import { notifyClinicUpdate, onClinicUpdate, startPolling } from "./js/sync.js";
 import { mountConnectionBanner } from "./js/connection.js";
+import { initSiteLinks } from "./js/sites.js";
 
 configureAuth("doctor");
+initSiteLinks();
 
 const loginView = document.querySelector("[data-login-view]");
 const appView = document.querySelector("[data-app-view]");

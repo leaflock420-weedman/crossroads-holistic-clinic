@@ -2,6 +2,7 @@ require("dotenv").config();
 const express = require("express");
 const path = require("path");
 const store = require("./store");
+const domains = require("./domains");
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
@@ -32,6 +33,10 @@ function auth(requiredRoles) {
 
 app.get("/api/health", (_req, res) => {
   res.json({ ok: true, service: "crossroads-clinic", mode: "live" });
+});
+
+app.get("/api/sites", (req, res) => {
+  res.json(domains.getSitesConfig(req));
 });
 
 app.get("/api/config", (_req, res) => {
@@ -289,6 +294,51 @@ app.put("/api/admin/orders/:id", auth(["admin"]), (req, res) => {
   res.json(result);
 });
 
+function sendDist(file, res) {
+  res.sendFile(path.join(DIST, file));
+}
+
+app.use((req, res, next) => {
+  if (req.method !== "GET" && req.method !== "HEAD") return next();
+
+  const ctx = domains.resolveRequest(req);
+  req.siteContext = ctx;
+
+  if (ctx.mode !== "subdomains") return next();
+
+  if (ctx.portal === "api") {
+    if (!req.path.startsWith("/api/")) {
+      return res.redirect(302, "/api/health");
+    }
+    return next();
+  }
+
+  const pathPortal = domains.pathToPortal(req.path);
+  if (pathPortal && pathPortal !== ctx.portal && ctx.portal) {
+    return res.redirect(302, domains.siteUrl(pathPortal, req));
+  }
+
+  if (ctx.portal === "home" && pathPortal && pathPortal !== "home") {
+    return res.redirect(301, domains.siteUrl(pathPortal, req));
+  }
+
+  if (ctx.portal && ctx.portal !== "home") {
+    const file = domains.portalFile(ctx.portal);
+    if (!file) return next();
+
+    const legacyPaths = new Set([`/${file}`, domains.PORTALS[ctx.portal]?.path].filter(Boolean));
+    if (legacyPaths.has(req.path)) {
+      return res.redirect(301, "/");
+    }
+
+    if (req.path === "/" || req.path === "") {
+      return sendDist(file, res);
+    }
+  }
+
+  return next();
+});
+
 const cleanRoutes = {
   "/start": "start.html",
   "/portal": "portal.html",
@@ -296,14 +346,25 @@ const cleanRoutes = {
   "/admin": "admin.html",
 };
 Object.entries(cleanRoutes).forEach(([route, file]) => {
-  const filePath = path.join(DIST, file);
-  const send = (_req, res) => res.sendFile(filePath);
+  const send = (req, res) => {
+    const ctx = domains.resolveRequest(req);
+    const portalKey = domains.pathToPortal(route);
+    if (ctx.mode === "subdomains" && portalKey) {
+      return res.redirect(301, domains.siteUrl(portalKey, req));
+    }
+    sendDist(file, res);
+  };
   app.get(route, send);
   app.get(`${route}/`, send);
 });
 
-app.get("/", (_req, res) => {
-  res.sendFile(path.join(DIST, "index.html"));
+app.get("/", (req, res) => {
+  const ctx = req.siteContext || domains.resolveRequest(req);
+  if (ctx.mode === "subdomains" && ctx.portal && ctx.portal !== "home") {
+    const file = domains.portalFile(ctx.portal);
+    if (file) return sendDist(file, res);
+  }
+  sendDist("index.html", res);
 });
 
 app.use(express.static(DIST, { index: false }));
@@ -312,7 +373,12 @@ app.use((req, res) => {
   if (req.path.startsWith("/api/")) {
     return res.status(404).json({ error: "Not found" });
   }
-  res.sendFile(path.join(DIST, "index.html"));
+  const ctx = domains.resolveRequest(req);
+  if (ctx.mode === "subdomains" && ctx.portal && ctx.portal !== "home" && ctx.portal !== "api") {
+    const file = domains.portalFile(ctx.portal);
+    if (file) return sendDist(file, res);
+  }
+  sendDist("index.html", res);
 });
 
 app.listen(PORT, () => {
