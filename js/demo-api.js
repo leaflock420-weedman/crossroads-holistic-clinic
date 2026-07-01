@@ -1,7 +1,8 @@
 import { generateTimeSlots, APPOINTMENT_MINUTES, NEW_PATIENT_MINUTES } from "./data.js";
 import { notifyClinicUpdate } from "./sync.js";
 
-const DEMO_STATE_KEY = "crossroads-demo-state-v5";
+const DEMO_STATE_KEY = "crossroads-demo-state-v6";
+const LEGACY_STATE_KEYS = ["crossroads-demo-state-v5", "crossroads-demo-state-v4"];
 
 const DEMO_ACCOUNTS = {
   "demo@crossroads.clinic": { password: "demo1234", role: "patient" },
@@ -334,8 +335,18 @@ function buildInitialState() {
 
 function loadDemoState() {
   try {
-    const raw = sessionStorage.getItem(DEMO_STATE_KEY);
+    const raw = localStorage.getItem(DEMO_STATE_KEY);
     if (raw) return JSON.parse(raw);
+    for (const legacyKey of LEGACY_STATE_KEYS) {
+      const legacy =
+        localStorage.getItem(legacyKey) || sessionStorage.getItem(legacyKey);
+      if (legacy) {
+        localStorage.setItem(DEMO_STATE_KEY, legacy);
+        localStorage.removeItem(legacyKey);
+        sessionStorage.removeItem(legacyKey);
+        return JSON.parse(legacy);
+      }
+    }
   } catch {}
   const state = buildInitialState();
   saveDemoState(state);
@@ -343,7 +354,7 @@ function loadDemoState() {
 }
 
 function saveDemoState(state) {
-  sessionStorage.setItem(DEMO_STATE_KEY, JSON.stringify(state));
+  localStorage.setItem(DEMO_STATE_KEY, JSON.stringify(state));
   notifyClinicUpdate();
 }
 
@@ -390,6 +401,7 @@ function doctorQueue(state, doctorId) {
   const today = todayIso();
   const appointments = state.appointments
     .filter((a) => {
+      if (a.status === "cancelled" || a.telehealthStatus === "cancelled") return false;
       const patient = state.patients[a.patientId];
       const assigned =
         patient?.assignedDoctorId === doctorId ||
@@ -441,7 +453,11 @@ function generateTempPassword() {
 }
 
 export function resetDemoState() {
-  sessionStorage.removeItem(DEMO_STATE_KEY);
+  localStorage.removeItem(DEMO_STATE_KEY);
+  LEGACY_STATE_KEYS.forEach((k) => {
+    localStorage.removeItem(k);
+    sessionStorage.removeItem(k);
+  });
   loadDemoState();
 }
 
@@ -597,11 +613,18 @@ export function demoApi(path, options = {}, token) {
   }
 
   if (pathname === "/api/patient/orders" && method === "POST") {
+    const items = body.items || [];
+    const subtotal = items.reduce((s, i) => s + i.price * i.qty, 0);
+    const delivery = body.delivery || "pickup";
+    const shippingFee = delivery === "signature" ? 25 : delivery === "post" ? 20 : 0;
     const order = {
       id: uid("ORD"),
       patientId: session.user.id,
-      items: body.items || [],
-      total: (body.items || []).reduce((s, i) => s + i.price * i.qty, 0),
+      items,
+      subtotal,
+      delivery,
+      shippingFee,
+      total: subtotal + shippingFee,
       status: "processing",
       createdAt: new Date().toISOString(),
     };
@@ -901,13 +924,55 @@ export function demoApi(path, options = {}, token) {
     return { ok: true, patient, password, mode: "demo" };
   }
 
+  if (pathname.startsWith("/api/admin/appointments/") && pathname.endsWith("/cancel") && method === "POST") {
+    const id = pathname.split("/")[4];
+    const apt = state.appointments.find((a) => a.id === id);
+    if (!apt) throw new Error("Appointment not found");
+    apt.status = "cancelled";
+    apt.telehealthStatus = "cancelled";
+    apt.cancelledAt = new Date().toISOString();
+    apt.cancelledBy = session.user.id;
+    saveDemoState(state);
+    return { ok: true, appointment: apt, mode: "demo" };
+  }
+
+  if (pathname.startsWith("/api/doctor/appointments/") && pathname.endsWith("/cancel") && method === "POST") {
+    const id = pathname.split("/")[4];
+    const apt = state.appointments.find((a) => a.id === id);
+    if (!apt) throw new Error("Appointment not found");
+    apt.status = "cancelled";
+    apt.telehealthStatus = "cancelled";
+    apt.cancelledAt = new Date().toISOString();
+    apt.cancelledBy = session.user.id;
+    saveDemoState(state);
+    return { ok: true, appointment: apt, mode: "demo" };
+  }
+
   if (pathname.startsWith("/api/admin/appointments/") && method === "PUT") {
     const id = pathname.split("/").pop();
     const apt = state.appointments.find((a) => a.id === id);
     if (!apt) throw new Error("Appointment not found");
+    if (body.doctorId) {
+      const doctor = state.users[body.doctorId];
+      if (doctor) {
+        body.doctorId = doctor.id;
+        body.clinician = doctor.name;
+      }
+    }
     Object.assign(apt, body);
     saveDemoState(state);
     return { ok: true, appointment: apt, mode: "demo" };
+  }
+
+  if (pathname.startsWith("/api/admin/orders/") && method === "PUT") {
+    const id = pathname.split("/").pop();
+    const order = state.orders.find((o) => o.id === id);
+    if (!order) throw new Error("Order not found");
+    if (body.status) order.status = body.status;
+    if (body.notes !== undefined) order.notes = body.notes;
+    order.updatedAt = new Date().toISOString();
+    saveDemoState(state);
+    return { ok: true, order, mode: "demo" };
   }
 
   if (pathname.startsWith("/api/admin/patients/") && method === "PUT") {

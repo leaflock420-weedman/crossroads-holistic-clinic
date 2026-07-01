@@ -103,6 +103,13 @@
           <aside class="cart-panel" data-cart-panel hidden>
             <h3>Your cart</h3>
             <div data-cart-items></div>
+            <label class="cart-delivery">Delivery
+              <select data-delivery-method>
+                <option value="pickup">Collect from local pharmacy (free)</option>
+                <option value="post">Postage (+$20)</option>
+                <option value="signature">Registered post with signature (+$25)</option>
+              </select>
+            </label>
             <div class="cart-total" data-cart-total></div>
             <button type="button" class="button primary full" data-checkout-products>Place order</button>
           </aside>

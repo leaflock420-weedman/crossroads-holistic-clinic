@@ -95,7 +95,9 @@ app.post("/api/patient/prescriptions/:id/change-request", auth(["patient"]), (re
 });
 
 app.post("/api/patient/orders", auth(["patient"]), (req, res) => {
-  const result = store.placeOrder(req.session.user.id, req.body.items || []);
+  const result = store.placeOrder(req.session.user.id, req.body.items || [], {
+    delivery: req.body.delivery,
+  });
   if (!result.ok) return res.status(400).json(result);
   res.json(result);
 });
@@ -234,6 +236,24 @@ app.put("/api/admin/patients/:id", auth(["admin"]), (req, res) => {
 
 app.put("/api/admin/appointments/:id", auth(["admin"]), (req, res) => {
   const result = store.updateAppointment(req.params.id, req.body || {});
+  if (!result.ok) return res.status(404).json(result);
+  res.json(result);
+});
+
+app.post("/api/admin/appointments/:id/cancel", auth(["admin"]), (req, res) => {
+  const result = store.cancelAppointment(req.params.id, req.session.user.id);
+  if (!result.ok) return res.status(400).json(result);
+  res.json(result);
+});
+
+app.post("/api/doctor/appointments/:id/cancel", auth(["doctor"]), (req, res) => {
+  const result = store.cancelAppointment(req.params.id, req.session.user.id);
+  if (!result.ok) return res.status(400).json(result);
+  res.json(result);
+});
+
+app.put("/api/admin/orders/:id", auth(["admin"]), (req, res) => {
+  const result = store.updateOrder(req.params.id, req.body || {});
   if (!result.ok) return res.status(404).json(result);
   res.json(result);
 });

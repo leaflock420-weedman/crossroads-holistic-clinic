@@ -1,6 +1,7 @@
 import { generateTimeSlots } from "./js/data.js";
 import { api, setToken, getToken, configureAuth, clearOtherPortalTokens } from "./js/api.js";
-import { notifyClinicUpdate } from "./js/sync.js";
+import { notifyClinicUpdate, onClinicUpdate, startPolling } from "./js/sync.js";
+import { mountConnectionBanner } from "./js/connection.js";
 
 configureAuth("doctor");
 
@@ -24,6 +25,9 @@ let queue = [];
 let selectedId = null;
 let activeAppointmentId = null;
 let searchQuery = "";
+let stopPolling = null;
+let unsubscribeClinic = null;
+let currentAppointmentId = null;
 
 function patientTypeInfo(appointment) {
   const isNew = appointment?.patientType === "new" || /initial/i.test(appointment?.type || "");
@@ -47,6 +51,8 @@ const STAGES = {
 };
 
 function showLogin() {
+  stopPolling?.();
+  unsubscribeClinic?.();
   setToken(null);
   loginView.hidden = false;
   appView.hidden = true;
@@ -55,6 +61,22 @@ function showLogin() {
 function showApp() {
   loginView.hidden = true;
   appView.hidden = false;
+  stopPolling?.();
+  unsubscribeClinic?.();
+  stopPolling = startPolling(() => loadQueue(), 2500);
+  unsubscribeClinic = onClinicUpdate(() => loadQueue());
+  mountConnectionBanner(document.querySelector(".crm-main"));
+}
+
+function setDetailTab(name) {
+  document.querySelectorAll("[data-detail-tab]").forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.detailTab === name);
+  });
+  document.querySelectorAll("[data-detail-pane]").forEach((pane) => {
+    const on = pane.dataset.detailPane === name;
+    pane.classList.toggle("is-active", on);
+    pane.toggleAttribute("hidden", !on);
+  });
 }
 
 function stageFor(item) {
@@ -188,9 +210,11 @@ async function loadQueue() {
 async function openDetail(patientId, appointmentId, opts = {}) {
   if (!patientId) return;
   selectedId = patientId;
+  currentAppointmentId = appointmentId;
   detailPanel.classList.add("is-open");
   detailEmpty.hidden = true;
   detailBody.hidden = false;
+  setDetailTab("overview");
 
   const data = await api(`/api/doctor/patients/${patientId}`);
   const item = queue.find((q) => q.patient?.id === patientId);
@@ -297,6 +321,19 @@ async function openDetail(patientId, appointmentId, opts = {}) {
   document.querySelector("[data-detail-call]")?.addEventListener("click", () => startCall(apt.id));
   document.querySelector("[data-detail-complete]")?.addEventListener("click", () => completeCall(apt.id));
 
+  const cancelBtn = document.querySelector("[data-cancel-apt]");
+  if (cancelBtn) {
+    const canCancel = apt && apt.status !== "cancelled" && apt.telehealthStatus !== "completed";
+    cancelBtn.hidden = !canCancel;
+    cancelBtn.onclick = async () => {
+      if (!apt?.id || !confirm("Cancel this appointment? It will be removed from the pipeline.")) return;
+      await api(`/api/doctor/appointments/${apt.id}/cancel`, { method: "POST" });
+      notifyClinicUpdate();
+      await loadQueue();
+      closeDetail();
+    };
+  }
+
   const editable =
     data.prescriptions.find((r) => r.status === "pending_review" || r.status === "pending_dispense") ||
     data.prescriptions[0];
@@ -346,6 +383,7 @@ function loadScriptForm(rx, patientId, appointmentId, isNew = false) {
 
 function closeDetail() {
   selectedId = null;
+  currentAppointmentId = null;
   detailPanel.classList.remove("is-open");
   detailEmpty.hidden = false;
   detailBody.hidden = true;
@@ -522,8 +560,9 @@ document.querySelector("[data-schedule-form]")?.addEventListener("submit", async
       body: JSON.stringify({ patientId: fd.get("patientId"), ...body }),
     });
   }
+  notifyClinicUpdate();
   await loadQueue();
-  alert("Call time saved.");
+  alert("Call time saved — visible in admin appointments.");
 });
 
 availabilityDate?.addEventListener("change", loadAvailability);
@@ -559,6 +598,9 @@ loginForm?.addEventListener("submit", async (e) => {
 
 document.querySelector("[data-logout]")?.addEventListener("click", showLogin);
 document.querySelector("[data-close-detail]")?.addEventListener("click", closeDetail);
+document.querySelectorAll("[data-detail-tab]").forEach((btn) => {
+  btn.addEventListener("click", () => setDetailTab(btn.dataset.detailTab));
+});
 searchInput?.addEventListener("input", () => {
   searchQuery = searchInput.value;
   renderBoard();

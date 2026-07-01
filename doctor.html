@@ -102,39 +102,36 @@
                 <button class="crm-detail__close" type="button" data-close-detail aria-label="Close panel">×</button>
               </header>
 
-              <div class="crm-detail__actions" data-detail-actions></div>
+              <nav class="crm-detail__tabs" data-detail-tabs>
+                <button type="button" class="active" data-detail-tab="overview">Patient</button>
+                <button type="button" data-detail-tab="script">Script</button>
+                <button type="button" data-detail-tab="schedule">Schedule</button>
+              </nav>
 
-              <section class="crm-detail__section" data-change-requests-section hidden>
-                <h3>Medication change requests</h3>
-                <div data-change-requests></div>
-              </section>
+              <div class="crm-detail__scroll">
+                <div class="crm-detail__pane is-active" data-detail-pane="overview">
+                  <div class="crm-detail__actions" data-detail-actions></div>
 
-              <section class="crm-detail__section">
-                <h3>Schedule callback</h3>
-                <form class="flow-form crm-schedule-form" data-schedule-form>
-                  <input type="hidden" name="patientId" />
-                  <div class="field-grid">
-                    <label>Date <input type="date" name="date" required /></label>
-                    <label>Time <input type="time" name="time" required step="900" /></label>
-                  </div>
-                  <label>Visit type
-                    <select name="patientType">
-                      <option value="existing">Returning · 15 min</option>
-                      <option value="new">New patient · 30 min</option>
-                    </select>
-                  </label>
-                  <button class="button ghost full" type="submit">Save call time</button>
-                </form>
-              </section>
+                  <section class="crm-detail__section" data-change-requests-section hidden>
+                    <h3>Medication change requests</h3>
+                    <div data-change-requests></div>
+                  </section>
 
-              <section class="crm-detail__section">
-                <h3>Scripts on file</h3>
-                <ul class="crm-script-list" data-detail-scripts></ul>
-              </section>
+                  <section class="crm-detail__section">
+                    <h3>Scripts on file</h3>
+                    <ul class="crm-script-list" data-detail-scripts></ul>
+                  </section>
 
-              <section class="crm-detail__section">
-                <h3>Submit script</h3>
-                <form class="flow-form crm-script-form" data-script-form hidden>
+                  <section class="crm-detail__section">
+                    <button class="button ghost full" type="button" data-cancel-apt hidden>Cancel this appointment</button>
+                  </section>
+                </div>
+
+                <div class="crm-detail__pane" data-detail-pane="script" hidden>
+                  <section class="crm-detail__section">
+                    <h3>Submit script</h3>
+                    <p class="form-note">Goes straight to admin approval — patient receives eRx after approval.</p>
+                    <form class="flow-form crm-script-form" data-script-form hidden>
                   <input type="hidden" name="prescriptionId" />
                   <input type="hidden" name="patientId" />
                   <input type="hidden" name="appointmentId" />
@@ -168,7 +165,29 @@
                   <button class="button primary full" type="submit">Submit for admin approval</button>
                 </form>
                 <button class="button ghost full" type="button" data-new-script hidden>Add new script</button>
-              </section>
+                  </section>
+                </div>
+
+                <div class="crm-detail__pane" data-detail-pane="schedule" hidden>
+                  <section class="crm-detail__section">
+                    <h3>Schedule callback</h3>
+                    <form class="flow-form crm-schedule-form" data-schedule-form>
+                      <input type="hidden" name="patientId" />
+                      <div class="field-grid">
+                        <label>Date <input type="date" name="date" required /></label>
+                        <label>Time <input type="time" name="time" required step="900" /></label>
+                      </div>
+                      <label>Visit type
+                        <select name="patientType">
+                          <option value="existing">Returning · 15 min</option>
+                          <option value="new">New patient · 30 min</option>
+                        </select>
+                      </label>
+                      <button class="button ghost full" type="submit">Save call time</button>
+                    </form>
+                  </section>
+                </div>
+              </div>
             </div>
           </aside>
         </div>

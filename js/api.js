@@ -1,7 +1,16 @@
 import { demoApi, DEMO_ACCOUNT_HINT, isKnownDemoEmail } from "./demo-api.js";
 
+const API_MODE_KEY = "crossroads-api-mode";
 let TOKEN_KEY = "crossroads-auth-token";
 let apiMode = null;
+
+if (typeof window !== "undefined") {
+  window.addEventListener("storage", (e) => {
+    if (e.key === API_MODE_KEY && (e.newValue === "live" || e.newValue === "demo")) {
+      apiMode = e.newValue;
+    }
+  });
+}
 
 export function configureAuth(portal) {
   TOKEN_KEY = `crossroads-auth-${portal}`;
@@ -28,25 +37,35 @@ export function isDemoMode() {
 
 export function forceDemoMode() {
   apiMode = "demo";
+  try {
+    localStorage.setItem(API_MODE_KEY, "demo");
+  } catch {}
+}
+
+export async function resolveApiMode() {
+  return detectApiMode();
 }
 
 async function detectApiMode() {
-  if (apiMode) return apiMode;
   try {
     const res = await fetch("/api/health", { headers: { Accept: "application/json" } });
     const text = await res.text();
     const trimmed = text.trim();
-    if (!trimmed.startsWith("{")) {
-      apiMode = "demo";
-      return apiMode;
-    }
-    const data = JSON.parse(trimmed);
-    if (data?.ok && data?.service === "crossroads-clinic" && data?.mode !== "demo") {
-      apiMode = "live";
-      return apiMode;
+    if (trimmed.startsWith("{")) {
+      const data = JSON.parse(trimmed);
+      if (data?.ok && data?.service === "crossroads-clinic" && data?.mode !== "demo") {
+        apiMode = "live";
+        try {
+          localStorage.setItem(API_MODE_KEY, "live");
+        } catch {}
+        return apiMode;
+      }
     }
   } catch {}
   apiMode = "demo";
+  try {
+    localStorage.setItem(API_MODE_KEY, "demo");
+  } catch {}
   return apiMode;
 }
 

@@ -35,6 +35,7 @@
         <p class="portal-sidebar__user" data-sidebar-name></p>
         <nav class="portal-nav" data-admin-nav>
           <button type="button" class="active" data-view="dispense">Approve queue</button>
+          <button type="button" data-view="orders">Product orders</button>
           <button type="button" data-view="patients">Patients</button>
           <button type="button" data-view="appointments">Appointments</button>
         </nav>
@@ -56,6 +57,11 @@
           <div data-dispense-list></div>
           <h3>Reorder requests</h3>
           <div data-reorder-list></div>
+        </section>
+
+        <section class="portal-view" data-admin-view="orders" hidden>
+          <p class="view-intro">Patient accessory orders (vaporisers, storage jars, etc.) — fulfil via local pharmacy or post with signature.</p>
+          <div data-orders-list></div>
         </section>
 
         <section class="portal-view" data-admin-view="patients" hidden>

@@ -1,5 +1,6 @@
 import { api, setToken, getToken, configureAuth, clearOtherPortalTokens } from "./js/api.js";
-import { onClinicUpdate, startPolling } from "./js/sync.js";
+import { notifyClinicUpdate, onClinicUpdate, startPolling } from "./js/sync.js";
+import { mountConnectionBanner } from "./js/connection.js";
 
 configureAuth("admin");
 
@@ -11,14 +12,21 @@ const addPatientForm = document.querySelector("[data-add-patient-form]");
 const addPatientResult = document.querySelector("[data-add-patient-result]");
 const doctorSelects = () => document.querySelectorAll("[data-doctor-select]");
 
-const TITLES = { dispense: "Approve queue", patients: "Patients", appointments: "Appointments" };
+const TITLES = {
+  dispense: "Approve queue",
+  orders: "Product orders",
+  patients: "Patients",
+  appointments: "Appointments",
+};
 
 let overview = null;
 let stopPolling = null;
+let unsubscribeClinic = null;
 let activeView = "dispense";
 
 function showLogin() {
   stopPolling?.();
+  unsubscribeClinic?.();
   setToken(null);
   loginView.hidden = false;
   appView.hidden = true;
@@ -28,8 +36,10 @@ function showApp() {
   loginView.hidden = true;
   appView.hidden = false;
   stopPolling?.();
+  unsubscribeClinic?.();
   stopPolling = startPolling(() => loadOverview(), 2500);
-  onClinicUpdate(() => loadOverview());
+  unsubscribeClinic = onClinicUpdate(() => loadOverview());
+  mountConnectionBanner(document.querySelector(".portal-main"));
 }
 
 function setView(name) {
@@ -68,6 +78,7 @@ function formatSubmitted(rx) {
 async function loadOverview() {
   overview = await api("/api/admin/overview");
   renderApproveQueue();
+  renderOrders();
   renderPatients();
   renderAppointments();
   doctorSelects().forEach((sel) => {
@@ -139,9 +150,59 @@ function renderApproveQueue() {
     btn.addEventListener("click", async () => {
       const res = await api(`/api/admin/prescriptions/${btn.dataset.approveRx}/approve`, { method: "POST" });
       const url = res.erx?.ausscriptsUrl || res.prescription?.ausscriptsUrl;
+      notifyClinicUpdate();
       alert(
         `Approved and sent via eRx.\n\nPatient link:\n${url || res.erx?.erxToken || "check portal"}`
       );
+      await loadOverview();
+    });
+  });
+}
+
+function deliveryLabel(method) {
+  if (method === "signature") return "Registered post + signature ($25)";
+  if (method === "post") return "Postage ($20)";
+  return "Local pharmacy pickup";
+}
+
+function renderOrders() {
+  const orders = (overview.orders || []).sort(
+    (a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)
+  );
+  const el = document.querySelector("[data-orders-list]");
+  if (!el) return;
+  el.innerHTML = orders.length
+    ? orders
+        .map((o) => {
+          const items = (o.items || [])
+            .map((i) => `${i.name} × ${i.qty}`)
+            .join(", ");
+          return `
+        <article class="queue-card queue-card--fresh">
+          <div>
+            <strong>${patientName(o.patientId)}</strong>
+            <p>${items}</p>
+            <p class="queue-phone">${deliveryLabel(o.delivery)} · $${Number(o.total || 0).toFixed(2)} · ${o.status}</p>
+          </div>
+          <div class="queue-card__actions">
+            ${
+              o.status === "processing"
+                ? `<button class="button primary" type="button" data-fulfill-order="${o.id}">Mark shipped</button>`
+                : `<span class="crm-tag">${o.status}</span>`
+            }
+          </div>
+        </article>`;
+        })
+        .join("")
+    : `<p class="empty-state">No product orders yet. Patient cart checkouts appear here instantly.</p>`;
+
+  el.querySelectorAll("[data-fulfill-order]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      await api(`/api/admin/orders/${btn.dataset.fulfillOrder}`, {
+        method: "PUT",
+        body: JSON.stringify({ status: "shipped" }),
+      });
+      notifyClinicUpdate();
       await loadOverview();
     });
   });
@@ -242,12 +303,22 @@ function renderAppointments() {
               <input class="admin-inline-input" type="date" value="${a.date}" data-apt-date="${a.id}" />
               <input class="admin-inline-input" type="time" value="${a.time}" data-apt-time="${a.id}" step="900" />
             </td>
-            <td>${a.clinician || doctorName(a.doctorId)}</td>
+            <td>
+              <select class="admin-inline-select" data-apt-doctor="${a.id}">
+                <option value="">— Unassigned —</option>
+                ${doctorOptions(a.doctorId)}
+              </select>
+            </td>
             <td>${a.durationMinutes || 15} min · ${typeLabel}</td>
             <td>${a.telehealthStatus || a.status}</td>
             <td>
               <button class="button ghost" type="button" data-save-apt="${a.id}">Save</button>
               <button class="button primary" type="button" data-start-apt="${a.id}">Start call</button>
+              ${
+                a.status !== "cancelled"
+                  ? `<button class="button ghost" type="button" data-cancel-apt="${a.id}">Cancel</button>`
+                  : ""
+              }
             </td>
           </tr>`;
           })
@@ -264,8 +335,10 @@ function renderAppointments() {
         body: JSON.stringify({
           date: document.querySelector(`[data-apt-date="${id}"]`)?.value,
           time: document.querySelector(`[data-apt-time="${id}"]`)?.value,
+          doctorId: document.querySelector(`[data-apt-doctor="${id}"]`)?.value || null,
         }),
       });
+      notifyClinicUpdate();
       await loadOverview();
     });
   });
@@ -287,8 +360,18 @@ function renderAppointments() {
       }),
     });
     e.target.reset();
+    notifyClinicUpdate();
     await loadOverview();
     setView("appointments");
+  });
+
+  document.querySelectorAll("[data-cancel-apt]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      if (!confirm("Cancel this appointment?")) return;
+      await api(`/api/admin/appointments/${btn.dataset.cancelApt}/cancel`, { method: "POST" });
+      notifyClinicUpdate();
+      await loadOverview();
+    });
   });
 
   document.querySelectorAll("[data-start-apt]").forEach((btn) => {

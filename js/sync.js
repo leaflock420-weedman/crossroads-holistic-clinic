@@ -16,11 +16,13 @@ export function onClinicUpdate(callback) {
     if (e.data?.type === "clinic-updated") callback();
   };
   channel?.addEventListener("message", handler);
-  window.addEventListener("storage", (e) => {
-    if (e.key?.startsWith("crossroads-demo-state")) callback();
-  });
+  const storageHandler = (e) => {
+    if (e.key?.startsWith("crossroads-demo-state") || e.key === "crossroads-api-mode") callback();
+  };
+  window.addEventListener("storage", storageHandler);
   return () => {
     channel?.removeEventListener("message", handler);
+    window.removeEventListener("storage", storageHandler);
   };
 }
 

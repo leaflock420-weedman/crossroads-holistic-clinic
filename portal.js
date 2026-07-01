@@ -1,6 +1,7 @@
 import { PRODUCTS } from "./js/data.js";
-import { api, setToken, getToken, configureAuth, clearOtherPortalTokens, isReorderReady, daysUntilReorder, isDemoMode } from "./js/api.js";
-import { onClinicUpdate, startPolling } from "./js/sync.js";
+import { api, setToken, getToken, configureAuth, clearOtherPortalTokens, isReorderReady, daysUntilReorder } from "./js/api.js";
+import { notifyClinicUpdate, onClinicUpdate, startPolling } from "./js/sync.js";
+import { mountConnectionBanner } from "./js/connection.js";
 
 configureAuth("patient");
 
@@ -29,6 +30,7 @@ const TITLES = {
 let patientData = null;
 let cart = [];
 let stopPolling = null;
+let unsubscribeClinic = null;
 
 function visiblePrescriptions(list) {
   return (list || []).filter((r) => r.status === "active" || r.status === "reorder_requested");
@@ -47,19 +49,7 @@ function showLogin(clear = true) {
 function showApp() {
   loginView.hidden = true;
   appView.hidden = false;
-  let banner = document.querySelector("[data-demo-banner]");
-  if (isDemoMode()) {
-    if (!banner) {
-      banner = document.createElement("p");
-      banner.dataset.demoBanner = "";
-      banner.className = "demo-mode-banner";
-      banner.textContent = "Demo mode — using local data until live API connects.";
-      appView.querySelector(".patient-main")?.prepend(banner);
-    }
-    banner.hidden = false;
-  } else if (banner) {
-    banner.hidden = true;
-  }
+  mountConnectionBanner(document.querySelector(".patient-main"));
 }
 
 function setView(name) {
@@ -282,19 +272,32 @@ function renderProducts() {
   renderCart();
 }
 
+function shippingFee(method) {
+  if (method === "signature") return 25;
+  if (method === "post") return 20;
+  return 0;
+}
+
 function renderCart() {
   const panel = document.querySelector("[data-cart-panel]");
   const items = document.querySelector("[data-cart-items]");
   const total = document.querySelector("[data-cart-total]");
+  const deliveryEl = document.querySelector("[data-delivery-method]");
   if (!cart.length) {
     panel.hidden = true;
     return;
   }
   panel.hidden = false;
   items.innerHTML = cart.map((c) => `<div class="cart-line"><span>${c.name} × ${c.qty}</span><strong>$${(c.price * c.qty).toFixed(2)}</strong></div>`).join("");
-  const sum = cart.reduce((s, c) => s + c.price * c.qty, 0);
-  total.innerHTML = `<span>Total</span><strong>$${sum.toFixed(2)} AUD</strong>`;
+  const subtotal = cart.reduce((s, c) => s + c.price * c.qty, 0);
+  const ship = shippingFee(deliveryEl?.value || "pickup");
+  total.innerHTML = `
+    <div class="cart-line"><span>Subtotal</span><strong>$${subtotal.toFixed(2)}</strong></div>
+    ${ship ? `<div class="cart-line"><span>Delivery</span><strong>$${ship.toFixed(2)}</strong></div>` : ""}
+    <div class="cart-line cart-line--total"><span>Total</span><strong>$${(subtotal + ship).toFixed(2)} AUD</strong></div>`;
 }
+
+document.querySelector("[data-delivery-method]")?.addEventListener("change", renderCart);
 
 function renderProfile() {
   const list = document.querySelector("[data-profile-list]");
@@ -331,8 +334,9 @@ async function refresh() {
   renderProfile();
   showApp();
   stopPolling?.();
+  unsubscribeClinic?.();
   stopPolling = startPolling(() => refresh(), 4000);
-  onClinicUpdate(() => refresh());
+  unsubscribeClinic = onClinicUpdate(() => refresh());
 }
 
 loginForm?.addEventListener("submit", async (e) => {
@@ -413,11 +417,13 @@ document.querySelector("[data-followup-form]")?.addEventListener("submit", async
 document.querySelector("[data-checkout-products]")?.addEventListener("click", async () => {
   if (!cart.length) return;
   const items = cart.map((c) => ({ id: c.id, name: c.name, price: c.price, qty: c.qty }));
-  await api("/api/patient/orders", { method: "POST", body: JSON.stringify({ items }) });
+  const delivery = document.querySelector("[data-delivery-method]")?.value || "pickup";
+  await api("/api/patient/orders", { method: "POST", body: JSON.stringify({ items, delivery }) });
+  notifyClinicUpdate();
   cart = [];
   renderCart();
   await refresh();
-  alert("Order placed.");
+  alert("Order placed — admin will fulfil via your chosen delivery method.");
   setView("overview");
 });
 

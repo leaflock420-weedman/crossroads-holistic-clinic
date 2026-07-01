@@ -352,19 +352,46 @@ function requestReorder(prescriptionId) {
   return { ok: true, prescription: rx };
 }
 
-function placeOrder(patientId, items) {
-  const total = items.reduce((s, i) => s + i.price * i.qty, 0);
+function placeOrder(patientId, items, options = {}) {
+  const subtotal = items.reduce((s, i) => s + i.price * i.qty, 0);
+  const delivery = options.delivery || "pickup";
+  const shippingFee = delivery === "signature" ? 25 : delivery === "post" ? 20 : 0;
   const order = {
     id: uid("ORD"),
     patientId,
     items,
-    total,
+    subtotal,
+    delivery,
+    shippingFee,
+    total: subtotal + shippingFee,
     status: "processing",
     createdAt: new Date().toISOString(),
   };
   state.orders.push(order);
   persist();
   return { ok: true, order };
+}
+
+function updateOrder(id, patch) {
+  const order = state.orders.find((o) => o.id === id);
+  if (!order) return { ok: false, error: "Order not found." };
+  if (patch.status) order.status = patch.status;
+  if (patch.notes !== undefined) order.notes = patch.notes;
+  order.updatedAt = new Date().toISOString();
+  persist();
+  return { ok: true, order };
+}
+
+function cancelAppointment(id, actorId) {
+  const apt = state.appointments.find((a) => a.id === id);
+  if (!apt) return { ok: false, error: "Appointment not found." };
+  if (apt.status === "cancelled") return { ok: false, error: "Appointment already cancelled." };
+  apt.status = "cancelled";
+  apt.telehealthStatus = "cancelled";
+  apt.cancelledAt = new Date().toISOString();
+  apt.cancelledBy = actorId || null;
+  persist();
+  return { ok: true, appointment: apt };
 }
 
 function listDoctors() {
@@ -586,6 +613,7 @@ function doctorQueue(doctorId) {
   const today = new Date().toISOString().slice(0, 10);
   const appointments = state.appointments
     .filter((a) => {
+      if (a.status === "cancelled" || a.telehealthStatus === "cancelled") return false;
       const patient = state.patients.find((p) => p.id === a.patientId);
       const assigned = patient?.assignedDoctorId === doctorId || a.doctorId === doctorId || a.clinician === doctor?.name;
       if (!assigned && doctor?.role === "doctor") return false;
@@ -951,6 +979,8 @@ module.exports = {
   completeTelehealth,
   requestReorder,
   placeOrder,
+  updateOrder,
+  cancelAppointment,
   adminOverview,
   adminCreatePatient,
   updatePatient,
