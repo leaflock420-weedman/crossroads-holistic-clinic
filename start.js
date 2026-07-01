@@ -1,7 +1,8 @@
 import { getAvailableDates } from "./js/data.js";
-import { api, setToken } from "./js/api.js";
-import { initSiteLinks } from "./js/sites.js";
+import { api, setToken, configureAuth } from "./js/api.js";
+import { initSiteLinks, getSites, siteHref } from "./js/sites.js";
 
+configureAuth("patient");
 initSiteLinks();
 
 const CONSULT_FEE = 49;
@@ -184,6 +185,10 @@ document.querySelector("[data-payment-form]")?.addEventListener("submit", async 
     });
 
     setToken(result.token);
+    const sites = await getSites();
+    const portalUrl = siteHref(sites, "portal");
+    const portalLink = document.querySelector("[data-portal-link]");
+    if (portalLink instanceof HTMLAnchorElement) portalLink.href = portalUrl;
 
     credentialsEl.innerHTML = `
       <div><dt>Portal email</dt><dd>${result.patient.email}</dd></div>

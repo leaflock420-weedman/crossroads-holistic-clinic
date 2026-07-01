@@ -515,17 +515,53 @@ document.querySelector("[data-followup-form]")?.addEventListener("submit", async
   }
 });
 
-document.querySelector("[data-checkout-products]")?.addEventListener("click", async () => {
+const checkoutDialog = document.querySelector("[data-checkout-dialog]");
+const checkoutForm = document.querySelector("[data-checkout-form]");
+const checkoutSummary = document.querySelector("[data-checkout-summary]");
+
+function openCheckout() {
+  if (!cart.length || !checkoutDialog) return;
+  const deliveryEl = document.querySelector("[data-delivery-method]");
+  const subtotal = cart.reduce((s, c) => s + c.price * c.qty, 0);
+  const ship = shippingFee(deliveryEl?.value || "pickup");
+  const total = subtotal + ship;
+  if (checkoutSummary) {
+    checkoutSummary.innerHTML = `
+      ${cart.map((c) => `<div class="pay-line"><span>${c.name} × ${c.qty}</span><strong>$${(c.price * c.qty).toFixed(2)}</strong></div>`).join("")}
+      ${ship ? `<div class="pay-line muted"><span>Delivery</span><span>$${ship.toFixed(2)}</span></div>` : ""}
+      <div class="pay-line total"><span>Total</span><strong>$${total.toFixed(2)} AUD</strong></div>`;
+  }
+  checkoutDialog.showModal();
+}
+
+document.querySelector("[data-checkout-products]")?.addEventListener("click", openCheckout);
+
+document.querySelector("[data-checkout-cancel]")?.addEventListener("click", () => checkoutDialog?.close());
+
+checkoutForm?.addEventListener("submit", async (e) => {
+  e.preventDefault();
   if (!cart.length) return;
-  const items = cart.map((c) => ({ id: c.id, name: c.name, price: c.price, qty: c.qty }));
-  const delivery = document.querySelector("[data-delivery-method]")?.value || "pickup";
-  await api("/api/patient/orders", { method: "POST", body: JSON.stringify({ items, delivery }) });
-  notifyClinicUpdate();
-  cart = [];
-  renderCart();
-  await refresh();
-  alert("Order placed — admin will fulfil via your chosen delivery method.");
-  setView("overview");
+  const btn = document.querySelector("[data-checkout-pay]");
+  btn.disabled = true;
+  btn.textContent = "Processing…";
+  await new Promise((r) => setTimeout(r, 900));
+  try {
+    const items = cart.map((c) => ({ id: c.id, name: c.name, price: c.price, qty: c.qty }));
+    const delivery = document.querySelector("[data-delivery-method]")?.value || "pickup";
+    await api("/api/patient/orders", { method: "POST", body: JSON.stringify({ items, delivery }) });
+    notifyClinicUpdate();
+    cart = [];
+    renderCart();
+    checkoutDialog?.close();
+    await refresh();
+    setView("overview");
+    alert("Order placed — admin will fulfil via your chosen delivery method.");
+  } catch (err) {
+    alert(err.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Pay & place order";
+  }
 });
 
 if (getToken()) {

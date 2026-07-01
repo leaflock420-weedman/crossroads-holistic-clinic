@@ -104,6 +104,20 @@ function buildUrlsFromEnv() {
   return urls;
 }
 
+function envSiteMode(urls) {
+  if (!urls?.home) return "split";
+  try {
+    const homeHost = new URL(urls.home).host;
+    const sameHost = ["book", "portal", "doctor", "admin"].every((key) => {
+      const u = urls[key];
+      return u && new URL(u).host === homeHost;
+    });
+    return sameHost ? "paths" : "split";
+  } catch {
+    return "split";
+  }
+}
+
 function buildUrls(req) {
   const envUrls = buildUrlsFromEnv();
   if (envUrls) return envUrls;
@@ -136,10 +150,10 @@ function getSitesConfig(req) {
   const ctx = resolveRequest(req);
   const envUrls = buildUrlsFromEnv();
   return {
-    mode: envUrls ? "split" : ctx.mode,
+    mode: envUrls ? envSiteMode(envUrls) : ctx.mode,
     domain: CLINIC_DOMAIN,
     current: ctx.portal || "home",
-    urls: buildUrls(req),
+    urls: envUrls || buildUrls(req),
   };
 }
 

@@ -1,6 +1,6 @@
-# Crossroads HC — split portals on Render (shared API, isolated frontends).
-# Delete any old Static Site on crossroads-holistic-clinic.onrender.com before applying.
-# Custom domains later: api., book., portal., doctor., admin. → matching service.
+# Crossroads HC — 2 custom domains (free plan):
+#   crossroads.clinic + www  → all patient/doctor/admin frontends (path routes)
+#   api.crossroads.clinic    → shared API + database
 services:
   - type: web
     name: crossroads-api
@@ -25,55 +25,19 @@ services:
       - key: PORTAL_URL_HOME
         value: https://crossroads.clinic
       - key: PORTAL_URL_BOOK
-        value: https://book.crossroads.clinic
+        value: https://crossroads.clinic/start.html
       - key: PORTAL_URL_PORTAL
-        value: https://portal.crossroads.clinic
+        value: https://crossroads.clinic/portal.html
       - key: PORTAL_URL_DOCTOR
-        value: https://doctor.crossroads.clinic
+        value: https://crossroads.clinic/doctor.html
       - key: PORTAL_URL_ADMIN
-        value: https://admin.crossroads.clinic
+        value: https://crossroads.clinic/admin.html
 
   - type: web
     name: crossroads-home
     runtime: static
-    buildCommand: npm install && npm run build:home
+    buildCommand: npm install && npm run build:all
     staticPublishPath: ./dist-static/home
-    envVars:
-      - key: VITE_API_HOST
-        value: api.crossroads.clinic
-
-  - type: web
-    name: crossroads-book
-    runtime: static
-    buildCommand: npm install && npm run build:book
-    staticPublishPath: ./dist-static/book
-    envVars:
-      - key: VITE_API_HOST
-        value: api.crossroads.clinic
-
-  - type: web
-    name: crossroads-portal
-    runtime: static
-    buildCommand: npm install && npm run build:portal
-    staticPublishPath: ./dist-static/portal
-    envVars:
-      - key: VITE_API_HOST
-        value: api.crossroads.clinic
-
-  - type: web
-    name: crossroads-doctor
-    runtime: static
-    buildCommand: npm install && npm run build:doctor
-    staticPublishPath: ./dist-static/doctor
-    envVars:
-      - key: VITE_API_HOST
-        value: api.crossroads.clinic
-
-  - type: web
-    name: crossroads-admin
-    runtime: static
-    buildCommand: npm install && npm run build:admin
-    staticPublishPath: ./dist-static/admin
     envVars:
       - key: VITE_API_HOST
         value: api.crossroads.clinic

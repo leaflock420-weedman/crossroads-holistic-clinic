@@ -25,7 +25,7 @@
           <p class="form-error" data-login-error hidden></p>
           <button class="button primary full" type="submit">Sign in</button>
         </form>
-        <p class="portal-login__hint">New patient? <a href="/start.html" data-site="book">Book consult ($49)</a></p>
+        <p class="portal-login__hint">New patient? <a href="/start.html" data-site="book">Check eligibility &amp; book ($49)</a></p>
         <details class="demo-hint">
           <summary>Demo logins (password <code>demo1234</code>)</summary>
           <p><code>demo@crossroads.clinic</code> — Jordan · scripts &amp; reorder</p>
@@ -118,7 +118,7 @@
               </select>
             </label>
             <div class="cart-total" data-cart-total></div>
-            <button type="button" class="button primary full" data-checkout-products>Place order</button>
+            <button type="button" class="button primary full" data-checkout-products>Checkout</button>
           </aside>
         </section>
 
@@ -183,6 +183,25 @@
         <div class="change-dialog__actions">
           <button class="button ghost" type="button" data-med-request-cancel>Cancel</button>
           <button class="button primary" type="submit">Submit to admin</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog class="change-dialog" data-checkout-dialog>
+      <form method="dialog" class="change-dialog__form" data-checkout-form>
+        <h3>Checkout</h3>
+        <p class="change-dialog__lead">Pay for complementary products — separate from prescribed medication.</p>
+        <div class="pay-box" data-checkout-summary></div>
+        <label>Name on card <input name="cardName" autocomplete="cc-name" required placeholder="Jane Smith" /></label>
+        <label>Card number <input name="cardNumber" inputmode="numeric" required placeholder="4242 4242 4242 4242" maxlength="19" /></label>
+        <div class="field-grid">
+          <label>Expiry <input name="cardExpiry" placeholder="MM/YY" required maxlength="5" /></label>
+          <label>CVC <input name="cardCvc" inputmode="numeric" required placeholder="123" maxlength="4" /></label>
+        </div>
+        <p class="form-note">Demo payment — no real charge.</p>
+        <div class="change-dialog__actions">
+          <button class="button ghost" type="button" data-checkout-cancel>Cancel</button>
+          <button class="button primary" type="submit" data-checkout-pay>Pay &amp; place order</button>
         </div>
       </form>
     </dialog>
