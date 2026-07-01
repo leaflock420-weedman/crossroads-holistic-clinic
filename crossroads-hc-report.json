@@ -1,11 +1,10 @@
 {
   "account": "crossroadshealthclinic26@gmail.com",
-  "workspace": "Crossroads HC",
-  "architecture": "2-domain path mode",
+  "status": "API live · frontends deploying · DNS propagating",
   "customDomains": {
-    "crossroads.clinic": "all frontends (home, book, portal, doctor, admin)",
+    "crossroads.clinic": "all frontends (Render custom domain OK)",
     "www.crossroads.clinic": "same as apex",
-    "api.crossroads.clinic": "shared API"
+    "api.crossroads.clinic": "shared API (LIVE)"
   },
   "urls": {
     "home": "https://crossroads.clinic/",
@@ -15,9 +14,16 @@
     "admin": "https://crossroads.clinic/admin.html",
     "api": "https://api.crossroads.clinic"
   },
-  "services": {
-    "crossroads-api": "https://crossroads-api-u33v.onrender.com",
-    "crossroads-home": "https://crossroads-home-zj2s.onrender.com"
+  "subdomainForwards": {
+    "book.crossroads.clinic": "https://crossroads.clinic/start.html",
+    "portal.crossroads.clinic": "https://crossroads.clinic/portal.html",
+    "doctor.crossroads.clinic": "https://crossroads.clinic/doctor.html",
+    "admin.crossroads.clinic": "https://crossroads.clinic/admin.html"
   },
-  "note": "Separate book/portal/doctor/admin Render static sites are no longer required. Suspend or delete them in the dashboard to avoid confusion."
+  "fallbackOnrender": "https://crossroads-home-zj2s.onrender.com",
+  "demo": {
+    "patient": "demo@crossroads.clinic / demo1234",
+    "doctor": "dr.patel@crossroads.clinic / Doctor2026",
+    "admin": "admin@crossroads.clinic / CrossroadsAdmin2026"
+  }
 }
