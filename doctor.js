@@ -28,6 +28,8 @@ let searchQuery = "";
 let stopPolling = null;
 let unsubscribeClinic = null;
 let currentAppointmentId = null;
+let activeDetailTab = "overview";
+let detailPanelBusy = false;
 
 function patientTypeInfo(appointment) {
   const isNew = appointment?.patientType === "new" || /initial/i.test(appointment?.type || "");
@@ -69,6 +71,7 @@ function showApp() {
 }
 
 function setDetailTab(name) {
+  activeDetailTab = name;
   document.querySelectorAll("[data-detail-tab]").forEach((btn) => {
     btn.classList.toggle("active", btn.dataset.detailTab === name);
   });
@@ -79,10 +82,16 @@ function setDetailTab(name) {
   });
 }
 
+function isDetailPanelFocused() {
+  return detailPanel?.contains(document.activeElement);
+}
+
 function stageFor(item) {
-  if (item.appointment.telehealthStatus === "in_progress") return "on-call";
+  const a = item.appointment;
+  if (a.status === "cancelled" || a.telehealthStatus === "cancelled") return "wrap-up";
+  if (a.telehealthStatus === "in_progress") return "on-call";
   if (
-    item.appointment.telehealthStatus === "completed" ||
+    a.telehealthStatus === "completed" ||
     item.prescriptions.some((rx) =>
       ["pending_review", "pending_dispense", "reorder_requested"].includes(rx.status)
     )
@@ -141,7 +150,7 @@ function cardHtml(item) {
       <p class="crm-card__phone">${patient?.phone || "No phone on file"}</p>
       <div class="crm-card__tags">
         <span class="crm-tag ${pt.tagClass}">${pt.label}</span>
-        <span class="status-pill ${stage === "on-call" ? "ready" : "waiting"}">${a.telehealthStatus || "scheduled"}</span>
+        <span class="status-pill ${stage === "on-call" ? "ready" : "waiting"}">${a.status === "cancelled" || a.telehealthStatus === "cancelled" ? "cancelled" : a.telehealthStatus || "scheduled"}</span>
         ${pendingRx ? '<span class="crm-tag">Script review</span>' : ""}
         ${pendingDispense ? '<span class="crm-tag">Awaiting dispense</span>' : ""}
         ${reorder ? '<span class="crm-tag crm-tag--alert">Reorder</span>' : ""}
@@ -196,27 +205,80 @@ function renderBoard() {
   });
 }
 
-async function loadQueue() {
+async function loadQueue(opts = {}) {
   const data = await api("/api/doctor/queue");
   queue = data.queue || [];
   renderBoard();
-  if (selectedId) {
-    const item = queue.find((q) => q.patient?.id === selectedId);
-    if (item) await openDetail(selectedId, item.appointment.id, { silent: true });
-    else closeDetail();
+  if (!selectedId) return;
+  const item = queue.find((q) => q.patient?.id === selectedId);
+  if (!item) {
+    closeDetail();
+    return;
   }
+  currentAppointmentId = item.appointment.id;
+  if (opts.refreshDetail) {
+    await openDetail(selectedId, item.appointment.id, { preserveUI: false });
+  } else if (!detailPanelBusy && !isDetailPanelFocused()) {
+    await refreshDetailSummary(selectedId, item);
+  }
+}
+
+async function refreshDetailSummary(patientId, item) {
+  try {
+    const data = await api(`/api/doctor/patients/${patientId}`);
+    const apt = item?.appointment || data.appointments?.[0];
+    const pt = patientTypeInfo(apt);
+    document.querySelector("[data-detail-name]").textContent = data.patient.name;
+    document.querySelector("[data-detail-meta]").textContent = `${data.patient.email} · ${data.patient.phone || "—"} · ${data.patient.state}`;
+    document.querySelector("[data-detail-stage]").textContent = apt
+      ? `${pt.label} · ${pt.minutes} min · ${apt.date} ${apt.time} · ${apt.status === "cancelled" ? "cancelled" : apt.telehealthStatus || "scheduled"}`
+      : "Patient record";
+    document.querySelector("[data-detail-scripts]").innerHTML = data.prescriptions.length
+      ? data.prescriptions
+          .map(
+            (r) =>
+              `<li><button type="button" class="crm-script-pick" data-pick-rx="${r.id}"><strong>${r.name}</strong> — ${r.status} (${r.repeats}/${r.repeatsTotal})</button></li>`
+          )
+          .join("")
+      : "<li>No scripts yet</li>";
+    bindScriptPickers(data, patientId, currentAppointmentId);
+    setDetailTab(activeDetailTab);
+  } catch {}
+}
+
+function bindScriptPickers(data, patientId, appointmentId) {
+  document.querySelectorAll("[data-pick-rx]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const rx = data.prescriptions.find((r) => r.id === btn.dataset.pickRx);
+      if (!rx) return;
+      loadScriptForm(rx, patientId, appointmentId);
+      setDetailTab("script");
+    });
+  });
 }
 
 async function openDetail(patientId, appointmentId, opts = {}) {
   if (!patientId) return;
+  const isNewPatient = patientId !== selectedId;
+  const preserveUI =
+    opts.preserveUI === false ? false : !isNewPatient && Boolean(opts.silent || isDetailPanelFocused());
+
   selectedId = patientId;
   currentAppointmentId = appointmentId;
   detailPanel.classList.add("is-open");
   detailEmpty.hidden = true;
   detailBody.hidden = false;
-  setDetailTab("overview");
 
+  if (isNewPatient) {
+    activeDetailTab = "overview";
+    setDetailTab("overview");
+  } else if (!preserveUI) {
+    setDetailTab(activeDetailTab);
+  }
+
+  detailPanelBusy = true;
   const data = await api(`/api/doctor/patients/${patientId}`);
+  detailPanelBusy = false;
   const item = queue.find((q) => q.patient?.id === patientId);
   const apt = item?.appointment || data.appointments?.[0];
 
@@ -235,14 +297,7 @@ async function openDetail(patientId, appointmentId, opts = {}) {
         )
         .join("")
     : "<li>No scripts yet</li>";
-
-  document.querySelectorAll("[data-pick-rx]").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const rx = data.prescriptions.find((r) => r.id === btn.dataset.pickRx);
-      if (!rx) return;
-      loadScriptForm(rx, patientId, appointmentId);
-    });
-  });
+  bindScriptPickers(data, patientId, appointmentId);
 
   const changes = data.changeRequests?.filter((c) => c.status === "pending") || [];
   const changeSection = document.querySelector("[data-change-requests-section]");
@@ -296,16 +351,18 @@ async function openDetail(patientId, appointmentId, opts = {}) {
     changeEl.innerHTML = "";
   }
 
-  const scheduleForm = document.querySelector("[data-schedule-form]");
-  if (scheduleForm) {
-    scheduleForm.patientId.value = patientId;
-    if (apt?.date) scheduleForm.date.value = apt.date;
-    if (apt?.time) scheduleForm.time.value = apt.time;
-    scheduleForm.patientType.value = pt.isNew ? "new" : "existing";
+  if (!preserveUI) {
+    const scheduleForm = document.querySelector("[data-schedule-form]");
+    if (scheduleForm) {
+      scheduleForm.patientId.value = patientId;
+      if (apt?.date) scheduleForm.date.value = apt.date;
+      populateScheduleTimeSelect(apt?.time || ALL_SLOTS[0]);
+      scheduleForm.patientType.value = pt.isNew ? "new" : "existing";
+    }
   }
 
   const stage = item ? stageFor(item) : "up-next";
-  document.querySelector("[data-detail-actions]").innerHTML = `
+  if (!preserveUI) document.querySelector("[data-detail-actions]").innerHTML = `
     ${
       stage !== "on-call"
         ? `<button class="button primary" type="button" data-detail-call="${apt?.id || ""}">Start phone consult</button>`
@@ -318,35 +375,41 @@ async function openDetail(patientId, appointmentId, opts = {}) {
     }
   `;
 
-  document.querySelector("[data-detail-call]")?.addEventListener("click", () => startCall(apt.id));
-  document.querySelector("[data-detail-complete]")?.addEventListener("click", () => completeCall(apt.id));
+  if (!preserveUI) {
+    document.querySelector("[data-detail-call]")?.addEventListener("click", () => startCall(apt.id));
+    document.querySelector("[data-detail-complete]")?.addEventListener("click", () => completeCall(apt.id));
+  }
 
   const cancelBtn = document.querySelector("[data-cancel-apt]");
-  if (cancelBtn) {
+  if (cancelBtn && !preserveUI) {
     const canCancel = apt && apt.status !== "cancelled" && apt.telehealthStatus !== "completed";
     cancelBtn.hidden = !canCancel;
     cancelBtn.onclick = async () => {
-      if (!apt?.id || !confirm("Cancel this appointment? It will be removed from the pipeline.")) return;
+      if (!apt?.id || !confirm("Cancel this appointment? It stays in Wrap up as cancelled for your records.")) return;
       await api(`/api/doctor/appointments/${apt.id}/cancel`, { method: "POST" });
       notifyClinicUpdate();
-      await loadQueue();
-      closeDetail();
+      await loadQueue({ refreshDetail: true });
     };
   }
 
-  const editable =
-    data.prescriptions.find((r) => r.status === "pending_review" || r.status === "pending_dispense") ||
-    data.prescriptions[0];
-  const isNewPatient = !data.prescriptions.some((r) => r.status === "active");
-  if (editable && editable.status === "pending_review") {
-    loadScriptForm(editable, patientId, appointmentId, false);
-  } else {
-    showNewScript(patientId, appointmentId, isNewPatient);
+  if (!preserveUI) {
+    const editable =
+      data.prescriptions.find((r) => r.status === "pending_review" || r.status === "pending_dispense") ||
+      data.prescriptions[0];
+    const isNewPatientRx = !data.prescriptions.some((r) => r.status === "active");
+    if (editable && editable.status === "pending_review") {
+      loadScriptForm(editable, patientId, appointmentId, false);
+    } else {
+      showNewScript(patientId, appointmentId, isNewPatientRx);
+    }
+    newScriptBtn.hidden = false;
+    newScriptBtn.onclick = () => {
+      showNewScript(patientId, appointmentId, isNewPatientRx);
+      setDetailTab("script");
+    };
   }
 
-  newScriptBtn.hidden = false;
-  newScriptBtn.onclick = () => showNewScript(patientId, appointmentId, isNewPatient);
-
+  setDetailTab(activeDetailTab);
   if (!opts.silent) renderBoard();
 }
 
@@ -366,7 +429,9 @@ function loadScriptForm(rx, patientId, appointmentId, isNew = false) {
   const supplyEl = scriptForm.querySelector("[data-supply-days]");
   if (supplyEl) supplyEl.value = String(rx?.supplyDays ?? (hasActive ? 60 : 30));
   if (rx && !isNew) {
-    scriptForm.name.value = rx.name;
+    const isPlaceholder = rx.status === "pending_review" && /pending review/i.test(rx.name || "");
+    scriptForm.name.value = isPlaceholder ? "" : rx.name;
+    scriptForm.name.placeholder = isPlaceholder ? "Enter medication name after consult" : "";
     scriptForm.repeats.value = rx.repeats;
     scriptForm.intervalDays.value = rx.intervalDays || rx.supplyDays || 30;
     scriptForm.notes.value = rx.notes || "";
@@ -384,6 +449,7 @@ function loadScriptForm(rx, patientId, appointmentId, isNew = false) {
 function closeDetail() {
   selectedId = null;
   currentAppointmentId = null;
+  activeDetailTab = "overview";
   detailPanel.classList.remove("is-open");
   detailEmpty.hidden = false;
   detailBody.hidden = true;
@@ -421,7 +487,7 @@ async function startCall(appointmentId) {
   callBanner.hidden = false;
   await loadQueue();
   const item = queue.find((q) => q.appointment.id === appointmentId);
-  if (item?.patient?.id) await openDetail(item.patient.id, appointmentId, { silent: true });
+  if (item?.patient?.id) await openDetail(item.patient.id, appointmentId, { preserveUI: false });
 }
 
 async function completeCall(appointmentId) {
@@ -479,8 +545,8 @@ scriptForm?.addEventListener("submit", async (e) => {
   }
 
   notifyClinicUpdate();
-  await loadQueue();
-  await openDetail(fd.get("patientId"), fd.get("appointmentId"), { silent: true });
+  activeDetailTab = "script";
+  await loadQueue({ refreshDetail: true });
   alert("Script submitted — admin approval queue updated. Patient gets eRx after approval.");
 });
 
@@ -488,6 +554,12 @@ const availabilityDate = document.querySelector("[data-availability-date]");
 const availabilityGrid = document.querySelector("[data-availability-grid]");
 const ALL_SLOTS = generateTimeSlots();
 let selectedAvailability = new Set();
+
+function populateScheduleTimeSelect(selected = "") {
+  const sel = document.querySelector("[data-schedule-time]");
+  if (!sel) return;
+  sel.innerHTML = ALL_SLOTS.map((t) => `<option value="${t}" ${t === selected ? "selected" : ""}>${t}</option>`).join("");
+}
 
 function showDoctorView(name) {
   document.querySelectorAll("[data-doctor-panel]").forEach((panel) => {
@@ -605,6 +677,8 @@ searchInput?.addEventListener("input", () => {
   searchQuery = searchInput.value;
   renderBoard();
 });
+
+populateScheduleTimeSelect();
 
 if (getToken()) {
   api("/api/auth/me")

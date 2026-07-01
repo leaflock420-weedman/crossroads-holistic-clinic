@@ -495,6 +495,24 @@ function adminOverview() {
 function updatePatient(id, patch) {
   const patient = state.patients.find((p) => p.id === id);
   if (!patient) return { ok: false, error: "Patient not found." };
+  if (patch.assignedDoctorId !== undefined) {
+    const doctor = patch.assignedDoctorId ? resolveDoctor(patch.assignedDoctorId) : null;
+    patch.assignedDoctorId = doctor?.id || patch.assignedDoctorId || null;
+    state.appointments
+      .filter(
+        (a) =>
+          a.patientId === id &&
+          a.status !== "cancelled" &&
+          a.status !== "completed" &&
+          a.telehealthStatus !== "completed"
+      )
+      .forEach((a) => {
+        if (doctor) {
+          a.doctorId = doctor.id;
+          a.clinician = doctor.name;
+        }
+      });
+  }
   Object.assign(patient, patch);
   persist();
   return { ok: true, patient: sanitizePatient(patient) };
@@ -511,6 +529,10 @@ function updateAppointment(id, patch) {
     }
   }
   Object.assign(apt, patch);
+  if (patch.doctorId && apt.patientId) {
+    const patient = state.patients.find((p) => p.id === apt.patientId);
+    if (patient) patient.assignedDoctorId = patch.doctorId;
+  }
   persist();
   return { ok: true, appointment: apt };
 }
@@ -613,7 +635,6 @@ function doctorQueue(doctorId) {
   const today = new Date().toISOString().slice(0, 10);
   const appointments = state.appointments
     .filter((a) => {
-      if (a.status === "cancelled" || a.telehealthStatus === "cancelled") return false;
       const patient = state.patients.find((p) => p.id === a.patientId);
       const assigned = patient?.assignedDoctorId === doctorId || a.doctorId === doctorId || a.clinician === doctor?.name;
       if (!assigned && doctor?.role === "doctor") return false;

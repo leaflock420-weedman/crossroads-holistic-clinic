@@ -123,7 +123,7 @@
                   </section>
 
                   <section class="crm-detail__section">
-                    <button class="button ghost full" type="button" data-cancel-apt hidden>Cancel this appointment</button>
+                    <button class="button ghost full" type="button" data-cancel-apt hidden>Cancel appointment (keeps record in Wrap up)</button>
                   </section>
                 </div>
 
@@ -173,9 +173,12 @@
                     <h3>Schedule callback</h3>
                     <form class="flow-form crm-schedule-form" data-schedule-form>
                       <input type="hidden" name="patientId" />
+                      <p class="form-note">15-minute phone slots between 9:00am and 5:00pm (Mon–Fri).</p>
                       <div class="field-grid">
                         <label>Date <input type="date" name="date" required /></label>
-                        <label>Time <input type="time" name="time" required step="900" /></label>
+                        <label>Time
+                          <select name="time" required data-schedule-time></select>
+                        </label>
                       </div>
                       <label>Visit type
                         <select name="patientType">

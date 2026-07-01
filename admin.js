@@ -1,3 +1,4 @@
+import { TIME_SLOTS } from "./js/data.js";
 import { api, setToken, getToken, configureAuth, clearOtherPortalTokens } from "./js/api.js";
 import { notifyClinicUpdate, onClinicUpdate, startPolling } from "./js/sync.js";
 import { mountConnectionBanner } from "./js/connection.js";
@@ -69,21 +70,39 @@ function doctorOptions(selectedId = "") {
     .join("");
 }
 
+function timeSlotOptions(selected = "") {
+  return TIME_SLOTS.map((t) => `<option value="${t}" ${t === selected ? "selected" : ""}>${t}</option>`).join("");
+}
+
 function formatSubmitted(rx) {
   if (!rx.submittedAt) return "";
   const mins = Math.max(0, Math.round((Date.now() - new Date(rx.submittedAt).getTime()) / 60000));
   return mins < 1 ? "Just now" : `${mins} min ago`;
 }
 
-async function loadOverview() {
+function isEditingSection(selector) {
+  const root = document.querySelector(selector);
+  return Boolean(root?.contains(document.activeElement));
+}
+
+async function loadOverview(opts = {}) {
   overview = await api("/api/admin/overview");
   renderApproveQueue();
   renderOrders();
-  renderPatients();
-  renderAppointments();
+
+  const editingPatients = isEditingSection("[data-patients-table]");
+  const editingAppointments = isEditingSection("[data-appointments-table]");
+
+  if (opts.forcePatients || (activeView === "patients" && !editingPatients) || !document.querySelector("[data-patients-table] tbody")) {
+    renderPatients();
+  }
+  if (opts.forceAppointments || (activeView === "appointments" && !editingAppointments) || !document.querySelector("[data-appointments-table] tbody tr")) {
+    renderAppointments();
+  }
+
   doctorSelects().forEach((sel) => {
     const current = sel.value;
-    sel.innerHTML = doctorOptions(current);
+    sel.innerHTML = `<option value="">— Select doctor —</option>${doctorOptions(current)}`;
   });
 }
 
@@ -248,7 +267,8 @@ function renderPatients() {
         method: "PUT",
         body: JSON.stringify({ assignedDoctorId: doctorId || null }),
       });
-      await loadOverview();
+      notifyClinicUpdate();
+      await loadOverview({ forcePatients: true });
     });
   });
 
@@ -280,7 +300,7 @@ function renderAppointments() {
         <label>Patient <select name="patientId" required><option value="">Select patient</option>${patients}</select></label>
         <label>Doctor <select name="doctorId" data-doctor-select required>${doctorOptions()}</select></label>
         <label>Date <input type="date" name="date" required /></label>
-        <label>Time <input type="time" name="time" required step="900" /></label>
+        <label>Time <select name="time" required>${timeSlotOptions("09:00")}</select></label>
         <label>Visit type
           <select name="patientType">
             <option value="existing">Returning · 15 min</option>
@@ -301,7 +321,7 @@ function renderAppointments() {
             <td>${patientName(a.patientId)}</td>
             <td>
               <input class="admin-inline-input" type="date" value="${a.date}" data-apt-date="${a.id}" />
-              <input class="admin-inline-input" type="time" value="${a.time}" data-apt-time="${a.id}" step="900" />
+              <select class="admin-inline-select" data-apt-time="${a.id}">${timeSlotOptions(a.time)}</select>
             </td>
             <td>
               <select class="admin-inline-select" data-apt-doctor="${a.id}">
@@ -339,7 +359,7 @@ function renderAppointments() {
         }),
       });
       notifyClinicUpdate();
-      await loadOverview();
+      await loadOverview({ forceAppointments: true });
     });
   });
 
@@ -440,7 +460,11 @@ loginForm?.addEventListener("submit", async (e) => {
 
 document.querySelector("[data-logout]")?.addEventListener("click", showLogin);
 document.querySelectorAll("[data-admin-nav] button").forEach((btn) => {
-  btn.addEventListener("click", () => setView(btn.dataset.view));
+  btn.addEventListener("click", () => {
+    setView(btn.dataset.view);
+    if (btn.dataset.view === "patients") loadOverview({ forcePatients: true });
+    if (btn.dataset.view === "appointments") loadOverview({ forceAppointments: true });
+  });
 });
 
 if (getToken()) {

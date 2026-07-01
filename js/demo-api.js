@@ -401,7 +401,6 @@ function doctorQueue(state, doctorId) {
   const today = todayIso();
   const appointments = state.appointments
     .filter((a) => {
-      if (a.status === "cancelled" || a.telehealthStatus === "cancelled") return false;
       const patient = state.patients[a.patientId];
       const assigned =
         patient?.assignedDoctorId === doctorId ||
@@ -957,6 +956,8 @@ export function demoApi(path, options = {}, token) {
       if (doctor) {
         body.doctorId = doctor.id;
         body.clinician = doctor.name;
+        const patient = state.patients[apt.patientId];
+        if (patient) patient.assignedDoctorId = doctor.id;
       }
     }
     Object.assign(apt, body);
@@ -979,7 +980,24 @@ export function demoApi(path, options = {}, token) {
     const id = pathname.split("/").pop();
     const patient = state.patients[id];
     if (!patient) throw new Error("Patient not found");
-    if (body.assignedDoctorId !== undefined) patient.assignedDoctorId = body.assignedDoctorId || null;
+    if (body.assignedDoctorId !== undefined) {
+      const doctor = body.assignedDoctorId ? state.users[body.assignedDoctorId] : null;
+      patient.assignedDoctorId = doctor?.id || body.assignedDoctorId || null;
+      state.appointments
+        .filter(
+          (a) =>
+            a.patientId === id &&
+            a.status !== "cancelled" &&
+            a.status !== "completed" &&
+            a.telehealthStatus !== "completed"
+        )
+        .forEach((a) => {
+          if (doctor) {
+            a.doctorId = doctor.id;
+            a.clinician = doctor.name;
+          }
+        });
+    }
     Object.assign(patient, body);
     saveDemoState(state);
     return { ok: true, patient, mode: "demo" };
