@@ -14,7 +14,8 @@
     "start": "node server/index.js",
     "preview": "npm run build && npm start",
     "deploy": "node scripts/render-deploy.mjs",
-    "migrate": "node scripts/render-migrate.mjs"
+    "migrate": "node scripts/render-migrate.mjs",
+    "deploy:account": "node scripts/render-account-deploy.mjs"
   },
   "dependencies": {
     "dotenv": "^16.4.7",

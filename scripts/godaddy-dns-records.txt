@@ -6,12 +6,12 @@ Remove AAAA records if present (Render uses IPv4 only).
 TYPE    NAME      VALUE                              TTL
 ----    ----      -----                              ---
 A       @         216.24.57.1                        600
-CNAME   www       crossroads-home.onrender.com       600
-CNAME   api       crossroads-api-u6nu.onrender.com   600
-CNAME   book      crossroads-book.onrender.com       600
-CNAME   portal    crossroads-portal.onrender.com     600
-CNAME   doctor    crossroads-doctor.onrender.com     600
-CNAME   admin     crossroads-admin.onrender.com      600
+CNAME   www       crossroads-home-pbql.onrender.com       600
+CNAME   api       crossroads-api-pbql.onrender.com        600
+CNAME   book      crossroads-book-pbql.onrender.com       600
+CNAME   portal    crossroads-portal-pbql.onrender.com     600
+CNAME   doctor    crossroads-doctor-pbql.onrender.com     600
+CNAME   admin     crossroads-admin-pbql.onrender.com      600
 
 Render custom domains to add (each service → Settings → Custom Domains):
   crossroads-home   → crossroads.clinic, www.crossroads.clinic

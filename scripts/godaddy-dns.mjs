@@ -23,12 +23,12 @@ const RENDER_APEX_IP = "216.24.57.1";
 
 const DNS_RECORDS = [
   { type: "A", name: "@", value: RENDER_APEX_IP, ttl: 600 },
-  { type: "CNAME", name: "www", value: "crossroads-home.onrender.com", ttl: 600 },
-  { type: "CNAME", name: "api", value: "crossroads-api-u6nu.onrender.com", ttl: 600 },
-  { type: "CNAME", name: "book", value: "crossroads-book.onrender.com", ttl: 600 },
-  { type: "CNAME", name: "portal", value: "crossroads-portal.onrender.com", ttl: 600 },
-  { type: "CNAME", name: "doctor", value: "crossroads-doctor.onrender.com", ttl: 600 },
-  { type: "CNAME", name: "admin", value: "crossroads-admin.onrender.com", ttl: 600 },
+  { type: "CNAME", name: "www", value: "crossroads-home-pbql.onrender.com", ttl: 600 },
+  { type: "CNAME", name: "api", value: "crossroads-api-pbql.onrender.com", ttl: 600 },
+  { type: "CNAME", name: "book", value: "crossroads-book-pbql.onrender.com", ttl: 600 },
+  { type: "CNAME", name: "portal", value: "crossroads-portal-pbql.onrender.com", ttl: 600 },
+  { type: "CNAME", name: "doctor", value: "crossroads-doctor-pbql.onrender.com", ttl: 600 },
+  { type: "CNAME", name: "admin", value: "crossroads-admin-pbql.onrender.com", ttl: 600 },
 ];
 
 const RENDER_DOMAINS = [
