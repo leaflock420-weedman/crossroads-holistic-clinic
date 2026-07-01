@@ -455,26 +455,55 @@ function renderAppointments() {
     });
   });
 
-  document.querySelector("[data-schedule-apt-form]")?.addEventListener("submit", async (e) => {
+  async function loadScheduleSlots() {
+    const form = document.querySelector("[data-schedule-apt-form]");
+    const timeSel = form?.querySelector("[data-schedule-time]");
+    if (!timeSel) return;
+    const doctorId = form.doctorId?.value;
+    const date = form.querySelector("[data-schedule-date]")?.value;
+    if (!doctorId || !date) {
+      timeSel.innerHTML = `<option value="">Select date &amp; doctor first</option>`;
+      return;
+    }
+    try {
+      const data = await api(`/api/booking/slots?doctorId=${encodeURIComponent(doctorId)}&date=${encodeURIComponent(date)}`);
+      const times = data.available || [];
+      timeSel.innerHTML = times.length
+        ? times.map((t) => `<option value="${t}">${t}</option>`).join("")
+        : `<option value="">No open slots — try another date</option>`;
+    } catch (err) {
+      timeSel.innerHTML = `<option value="">${err.message}</option>`;
+    }
+  }
+
+  const scheduleForm = document.querySelector("[data-schedule-apt-form]");
+  scheduleForm?.querySelector("[data-schedule-date]")?.addEventListener("change", loadScheduleSlots);
+  scheduleForm?.doctorId?.addEventListener("change", loadScheduleSlots);
+
+  scheduleForm?.addEventListener("submit", async (e) => {
     e.preventDefault();
     const fd = new FormData(e.target);
     const patientType = fd.get("patientType");
-    await api("/api/admin/appointments", {
-      method: "POST",
-      body: JSON.stringify({
-        patientId: fd.get("patientId"),
-        doctorId: fd.get("doctorId"),
-        date: fd.get("date"),
-        time: fd.get("time"),
-        patientType,
-        durationMinutes: patientType === "new" ? 30 : 15,
-        type: patientType === "new" ? "Initial consult" : "Follow-up consult",
-      }),
-    });
-    e.target.reset();
-    notifyClinicUpdate();
-    await loadOverview();
-    setView("appointments");
+    try {
+      await api("/api/admin/appointments", {
+        method: "POST",
+        body: JSON.stringify({
+          patientId: fd.get("patientId"),
+          doctorId: fd.get("doctorId"),
+          date: fd.get("date"),
+          time: fd.get("time"),
+          patientType,
+          durationMinutes: patientType === "new" ? 30 : 15,
+          type: patientType === "new" ? "Initial consult" : "Follow-up consult",
+        }),
+      });
+      e.target.reset();
+      notifyClinicUpdate();
+      await loadOverview({ forceAppointments: true });
+      setView("appointments");
+    } catch (err) {
+      alert(err.message);
+    }
   });
 
   document.querySelectorAll("[data-cancel-apt]").forEach((btn) => {
